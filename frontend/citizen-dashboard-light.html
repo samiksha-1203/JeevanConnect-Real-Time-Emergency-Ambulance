@@ -856,6 +856,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://jeevanconnect-real-time-emergency.onrender.com/socket.io/socket.io.js"></script>
 <script>
+    const API_BASE_URL = window.__API_BASE_URL__ || ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'http://localhost:5000' : 'https://jeevanconnect-real-time-emergency.onrender.com');
     const hour = new Date().getHours();
     document.getElementById('greetTime').textContent = hour < 12 ? 'GOOD MORNING' : hour < 17 ? 'GOOD AFTERNOON' : 'GOOD EVENING';
     async function reverseGeocode(lat, lng) {
@@ -883,10 +884,11 @@
             currentUserLocation = { lat, lng }; // Update global location
             reverseGeocode(lat, lng);
             document.getElementById('locAccuracy').textContent = '± ' + Math.round(pos.coords.accuracy) + 'm';
-        }, () => {
-            document.getElementById('locValue').textContent = 'Nashik, Maharashtra';
+        }, (err) => {
+            const denied = err && err.code === 1;
+            document.getElementById('locValue').textContent = denied ? 'Location permission denied. Using Nashik, Maharashtra.' : 'Nashik, Maharashtra';
             document.getElementById('locAccuracy').textContent = 'APPROX';
-        });
+        }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
     } else {
         document.getElementById('locValue').textContent = 'Nashik, Maharashtra';
     }
@@ -1648,8 +1650,7 @@
         try {
             // Try to fetch from backend API
             const response = await fetch(
-                `/api/hospitals/nearby?lat=${currentUserLocation.lat}&lng=${currentUserLocation.lng}&radius=${radius}`,
-                { timeout: 2000 }
+                `${API_BASE_URL}/api/hospitals/nearby?lat=${currentUserLocation.lat}&lng=${currentUserLocation.lng}&radius=${radius}`
             );
             
             if (response.ok) {

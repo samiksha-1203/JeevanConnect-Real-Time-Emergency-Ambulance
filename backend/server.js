@@ -426,7 +426,8 @@ app.post('/api/auth/send-otp', async (req, res) => {
         : 'OTP generated. Check backend log or configure SMS provider to send OTP.',
       smsStatus,
       provider: smsProvider,
-      demoOtp: smsStatus !== 'sent' ? otp : undefined
+      // Always return demo OTP so deployment demos can continue even if SMS providers throttle or fail.
+      demoOtp: otp
     };
 
     res.json(responsePayload);
