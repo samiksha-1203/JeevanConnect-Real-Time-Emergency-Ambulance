@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JeevanConnect — Driver Console</title>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:     #f0f4f8;
+  --bg2:    #e8eef5;
+  --card:   #ffffff;
+  --border: rgba(2,132,199,0.12);
+  --border2:rgba(2,132,199,0.22);
+  --shadow: 0 2px 12px rgba(0,0,0,0.07);
+  --shadow-md: 0 6px 28px rgba(0,0,0,0.11);
+
+  --green:  #059669;
+  --green-l:#d1fae5;
+  --green-m:#6ee7b7;
+  --red:    #dc2626;
+  --red-l:  #fee2e2;
+  --amber:  #d97706;
+  --amber-l:#fef3c7;
+  --cyan:   #0284c7;
+  --cyan-l: #e0f2fe;
+  --purple: #7c3aed;
+  --purple-l:#ede9fe;
+  --text:   #0f172a;
+  --text2:  #475569;
+  --text3:  #94a3b8;
+
+  /* map road colors */
+  --road-main:#c8d8e8;
+  --road-sec: #dde7ef;
+  --road-opt: rgba(5,150,105,0.85);
+  --road-alt: rgba(217,119,6,0.6);
+  --road-bad: rgba(220,38,38,0.45);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+.app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;}
+
+/* ─── TOPBAR ─── */
+.topbar{padding:13px 18px 11px;display:flex;align-items:center;justify-content:space-between;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:var(--shadow);}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand-icon{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#059669,#047857);display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 2px 8px rgba(5,150,105,0.3);}
+.brand-text{font-family:'Exo 2',sans-serif;font-size:13px;font-weight:800;letter-spacing:2px;color:var(--cyan);}
+.brand-sub{font-size:9px;color:var(--text3);letter-spacing:1.5px;margin-top:1px;}
+.topbar-right{display:flex;align-items:center;gap:8px;}
+.status-pill{display:flex;align-items:center;gap:6px;padding:6px 13px;border-radius:20px;font-family:'Exo 2',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;cursor:pointer;transition:all .25s;border:1.5px solid;}
+.status-pill.available{background:var(--green-l);border-color:rgba(5,150,105,.3);color:var(--green);}
+.status-pill.busy{background:var(--red-l);border-color:rgba(220,38,38,.3);color:var(--red);}
+.sdot{width:7px;height:7px;border-radius:50%;animation:sdPulse 1.4s ease infinite;}
+.status-pill.available .sdot{background:var(--green);}
+.status-pill.busy .sdot{background:var(--red);}
+@keyframes sdPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.75)}}
+.driver-av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#bfdbfe,#3b82f6);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:15px;}
+
+.content{flex:1;overflow-y:auto;padding-bottom:80px;}
+
+/* ─── DRIVER STRIP ─── */
+.driver-strip{margin:14px 16px 0;padding:13px 16px;background:var(--card);border:1px solid var(--border);border-radius:16px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);}
+.driver-av2{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#dbeafe,#3b82f6);border:2px solid rgba(59,130,246,.2);display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0;}
+.driver-name{font-family:'Exo 2',sans-serif;font-size:16px;font-weight:800;color:var(--text);}
+.driver-meta{font-size:11px;color:var(--text3);margin-top:2px;display:flex;gap:10px;flex-wrap:wrap;}
+.driver-id{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--cyan);font-weight:600;}
+.shift-badge{padding:4px 10px;border-radius:8px;font-size:10px;font-weight:700;letter-spacing:1px;background:var(--green-l);border:1px solid rgba(5,150,105,.25);color:var(--green);flex-shrink:0;}
+
+/* ─── VEHICLE STATS BAR ─── */
+.vehicle-bar{margin:10px 16px 0;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.vstat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 8px;text-align:center;box-shadow:var(--shadow);}
+.vstat-icon{font-size:17px;display:block;margin-bottom:3px;}
+.vstat-val{font-family:'Exo 2',sans-serif;font-size:15px;font-weight:800;display:block;}
+.vstat-label{font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-top:1px;}
+.vstat-val.green{color:var(--green);}
+.vstat-val.amber{color:var(--amber);}
+.vstat-val.cyan{color:var(--cyan);}
+.vstat-val.red{color:var(--red);}
+
+/* ─── SECTION HEADER ─── */
+.sec-hdr{padding:14px 16px 8px;display:flex;align-items:center;justify-content:space-between;}
+.sec-title{font-family:'Exo 2',sans-serif;font-size:11px;font-weight:700;letter-spacing:2.5px;color:var(--text3);text-transform:uppercase;}
+.sec-action{font-size:10px;color:var(--cyan);font-weight:600;cursor:pointer;letter-spacing:1px;}
+
+/* ─── MISSION CARD ─── */
+.mission-card{margin:0 16px;background:var(--card);border:1.5px solid rgba(5,150,105,.28);border-radius:20px;overflow:hidden;box-shadow:0 4px 20px rgba(5,150,105,.1);}
+.mission-banner{padding:12px 16px;background:linear-gradient(135deg,rgba(5,150,105,.08),rgba(5,150,105,.03));border-bottom:1px solid rgba(5,150,105,.12);display:flex;align-items:center;justify-content:space-between;}
+.mission-type-row{display:flex;align-items:center;gap:10px;}
+.mtype-icon{font-size:22px;}
+.mtype-text{font-family:'Exo 2',sans-serif;font-size:15px;font-weight:800;color:var(--green);letter-spacing:.5px;}
+.mtype-sub{font-size:10px;color:var(--text3);letter-spacing:1px;margin-top:1px;}
+.priority-badge{padding:5px 11px;border-radius:20px;font-family:'Exo 2',sans-serif;font-size:10px;font-weight:800;letter-spacing:1.5px;}
+.priority-badge.critical{background:var(--red-l);border:1px solid rgba(220,38,38,.25);color:var(--red);}
+.priority-badge.medium{background:var(--amber-l);border:1px solid rgba(217,119,6,.25);color:var(--amber);}
+.priority-badge.low{background:var(--green-l);border:1px solid rgba(5,150,105,.25);color:var(--green);}
+.mission-details{padding:13px 16px;display:flex;flex-direction:column;gap:9px;}
+.mission-row{display:flex;align-items:flex-start;gap:11px;}
+.mrow-icon{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;margin-top:1px;}
+.mrow-icon.green{background:var(--green-l);}
+.mrow-icon.red{background:var(--red-l);}
+.mrow-icon.amber{background:var(--amber-l);}
+.mrow-icon.cyan{background:var(--cyan-l);}
+.mrow-label{font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;}
+.mrow-val{font-family:'Exo 2',sans-serif;font-size:13px;font-weight:700;color:var(--text);}
+.mrow-val.green{color:var(--green);}
+.mrow-val.amber{color:var(--amber);}
+.mrow-val.cyan{color:var(--cyan);}
+.mrow-val.red{color:var(--red);}
+.mrow-sub{font-size:11px;color:var(--text3);margin-top:1px;}
+.mission-actions{padding:0 16px 14px;display:flex;gap:10px;}
+.btn-accept{flex:1;padding:13px;border:none;border-radius:13px;background:linear-gradient(135deg,#047857,var(--green));color:white;font-family:'Exo 2',sans-serif;font-size:14px;font-weight:800;letter-spacing:1.5px;cursor:pointer;box-shadow:0 4px 16px rgba(5,150,105,.3);transition:all .2s;}
+.btn-accept:hover{transform:translateY(-1px);box-shadow:0 7px 22px rgba(5,150,105,.4);}
+.btn-decline{padding:13px 18px;border:1.5px solid rgba(220,38,38,.25);border-radius:13px;background:var(--red-l);color:var(--red);font-family:'Exo 2',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;}
+.btn-decline:hover{background:rgba(220,38,38,.15);}
+
+/* ─── MAP SECTION ─── */
+.map-section{margin:0 16px;}
+.map-wrapper{position:relative;border-radius:20px;overflow:hidden;background:#e8f0f8;box-shadow:var(--shadow-md);border:1px solid var(--border);}
+.google-nav-panel{margin-top:10px;background:#ffffff;border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);}
+.google-nav-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:linear-gradient(135deg,#e0f2fe,#f0f9ff);border-bottom:1px solid var(--border);}
+.google-nav-title{font-family:'Exo 2',sans-serif;font-size:11px;font-weight:800;letter-spacing:1.4px;color:var(--cyan);text-transform:uppercase;}
+.google-nav-sub{font-size:10px;color:var(--text3);margin-top:1px;}
+.google-nav-btn{border:none;background:var(--cyan);color:#fff;font-size:10px;font-weight:700;letter-spacing:.8px;padding:8px 10px;border-radius:9px;cursor:pointer;}
+.google-nav-btn:hover{background:#0369a1;}
+.google-route-frame{width:100%;height:220px;border:0;background:#f8fafc;}
+
+/* ── MAP CANVAS ── */
+.map-canvas{position:relative;height:340px;background:linear-gradient(160deg,#eaf3fb 0%,#dce9f4 100%);}
+
+/* City block fills */
+.city-block{position:absolute;background:rgba(176,196,215,0.28);border-radius:3px;}
+.cb1{top:5%;left:5%;width:13%;height:18%;}
+.cb2{top:5%;left:22%;width:18%;height:14%;}
+.cb3{top:5%;left:55%;width:16%;height:20%;}
+.cb4{top:5%;left:75%;width:20%;height:16%;}
+.cb5{top:30%;left:5%;width:11%;height:20%;}
+.cb6{top:30%;left:50%;width:10%;height:16%;}
+.cb7{top:30%;left:64%;width:14%;height:16%;}
+.cb8{top:30%;left:82%;width:13%;height:16%;}
+.cb9{top:62%;left:5%;width:16%;height:18%;}
+.cb10{top:62%;left:25%;width:14%;height:18%;}
+.cb11{top:62%;left:55%;width:10%;height:18%;}
+.cb12{top:62%;left:80%;width:15%;height:18%;}
+.cb13{top:84%;left:8%;width:20%;height:12%;}
+.cb14{top:84%;left:60%;width:16%;height:12%;}
+
+/* Main roads */
+.mroad{position:absolute;background:var(--road-main);}
+.mroad.h{left:0;right:0;}
+.mroad.v{top:0;bottom:0;}
+.mroad.w1{height:9px;}
+.mroad.w2{height:7px;}
+.mroad.wv1{width:9px;}
+.mroad.wv2{width:7px;}
+/* horizontal roads */
+.hr1{top:26%;}.hr2{top:52%;}.hr3{top:78%;}
+/* vertical roads */
+.vr1{left:20%;}.vr2{left:44%;}.vr3{left:72%;}
+
+/* Road labels */
+.road-label{position:absolute;font-size:8px;font-weight:700;color:#7a99b5;letter-spacing:.5px;background:rgba(255,255,255,.6);padding:1px 4px;border-radius:3px;white-space:nowrap;}
+
+/* ── ROUTE OVERLAYS ── */
+/* Optimal route (green) */
+.opt-seg{position:absolute;background:var(--road-opt);box-shadow:0 0 6px rgba(5,150,105,.5);}
+.os1{top:calc(26% - 2px);left:8%;width:37%;height:5px;border-radius:3px;}
+.os2{top:26%;left:44%;width:5px;height:26%;border-radius:3px;}
+.os3{top:calc(52% - 2px);left:44%;width:30%;height:5px;border-radius:3px;}
+
+/* Alternate route (amber dashed) */
+.alt-seg{position:absolute;border-top:3px dashed rgba(217,119,6,.5);}
+.as1{top:calc(52% - 1px);left:20%;width:25%;}
+
+/* Blocked route (red) */
+.bad-seg{position:absolute;border-top:3px dashed rgba(220,38,38,.45);}
+.bs1{top:calc(78% - 1px);left:20%;width:25%;}
+
+/* ── AMBULANCE DOT ── */
+.amb-dot{position:absolute;font-size:26px;filter:drop-shadow(0 2px 6px rgba(5,150,105,.5));animation:ambDrive 6s linear infinite;z-index:10;}
+@keyframes ambDrive{
+  0%  {left:6%;top:calc(26% - 20px);}
+  35% {left:41%;top:calc(26% - 20px);}
+  55% {left:41%;top:calc(52% - 20px);}
+  85% {left:70%;top:calc(52% - 20px);}
+  100%{left:70%;top:calc(52% - 20px);}
+}
+
+/* ── PATIENT MARKER ── */
+.patient-pin{position:absolute;top:calc(52% - 22px);left:71%;font-size:22px;animation:pinBounce 1.6s ease infinite;z-index:10;}
+@keyframes pinBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.patient-ring{position:absolute;top:calc(52% - 10px);left:72.5%;width:32px;height:32px;border-radius:50%;border:2px solid var(--red);animation:ringOut 1.8s ease-out infinite;z-index:9;}
+@keyframes ringOut{0%{transform:scale(.7);opacity:.7}100%{transform:scale(2.4);opacity:0}}
+
+/* ── GREEN CORRIDOR SIGNAL LIGHTS ── */
+.csig{position:absolute;width:11px;height:11px;border-radius:50%;z-index:8;}
+.csig.green-sig{background:var(--green);box-shadow:0 0 7px rgba(5,150,105,.8);animation:sigBlink 1.2s ease infinite;}
+.csig.amber-sig{background:var(--amber);box-shadow:0 0 7px rgba(217,119,6,.8);animation:sigBlink .8s ease infinite;}
+.csig.red-sig{background:var(--red);box-shadow:0 0 5px rgba(220,38,38,.6);}
+@keyframes sigBlink{0%,100%{opacity:1}50%{opacity:.3}}
+.cs1{top:calc(26% - 18px);left:18%;}
+.cs2{top:calc(26% - 18px);left:30%;}
+.cs3{top:calc(26% - 18px);left:41%;}
+.cs4{top:calc(52% - 18px);left:48%;}
+.cs5{top:calc(52% - 18px);left:62%;}
+
+/* Signal tooltip */
+.csig-tip{position:absolute;font-size:8px;font-weight:700;background:rgba(255,255,255,.92);border:1px solid var(--border);border-radius:5px;padding:2px 5px;white-space:nowrap;color:var(--text3);z-index:20;}
+.ct1{top:calc(26% - 32px);left:15%;}
+.ct2{top:calc(26% - 32px);left:27%;}
+.ct3{top:calc(26% - 32px);left:38%;}
+.ct4{top:calc(52% - 32px);left:45%;}
+.ct5{top:calc(52% - 32px);left:59%;}
+
+/* ── HOSPITAL MARKERS ── */
+.hosp-marker{position:absolute;font-size:17px;z-index:10;}
+.hosp-marker .hosp-tag{position:absolute;top:-20px;left:50%;transform:translateX(-50%);background:white;border:1px solid var(--border2);border-radius:6px;padding:2px 6px;font-size:8px;font-weight:700;color:var(--cyan);white-space:nowrap;box-shadow:var(--shadow);}
+.hm1{top:8%;left:4%;}
+.hm2{top:8%;left:76%;}
+
+/* ── AMBULANCE START MARKER ── */
+.start-marker{position:absolute;top:calc(26% - 22px);left:5%;font-size:10px;background:var(--green);color:white;padding:2px 6px;border-radius:5px;font-weight:700;z-index:11;font-family:'Exo 2',sans-serif;letter-spacing:1px;}
+
+/* ══ MAP OVERLAY PANELS ══ */
+
+/* TOP-LEFT: AI Assignment chip */
+.map-chip-ai{position:absolute;top:10px;left:10px;background:rgba(255,255,255,.95);border:1px solid var(--border2);border-radius:12px;padding:7px 10px;box-shadow:var(--shadow-md);z-index:20;min-width:120px;}
+.mca-title{font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--text3);text-transform:uppercase;margin-bottom:5px;display:flex;align-items:center;gap:4px;}
+.mca-title span{background:var(--purple-l);color:var(--purple);padding:1px 5px;border-radius:4px;font-size:7px;font-weight:700;}
+.mca-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;}
+.mca-label{font-size:9px;color:var(--text3);}
+.mca-val{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;}
+.mca-val.green{color:var(--green);}
+.mca-val.amber{color:var(--amber);}
+.mca-val.purple{color:var(--purple);}
+.mca-val.cyan{color:var(--cyan);}
+.haversine-line{margin-top:5px;padding:4px 6px;background:var(--cyan-l);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--cyan);border-left:2px solid var(--cyan);}
+
+/* TOP-RIGHT: Speed / GPS HUD */
+.map-hud{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:5px;z-index:20;}
+.hud-item{background:rgba(255,255,255,.95);border:1px solid var(--border);border-radius:9px;padding:5px 9px;text-align:center;box-shadow:var(--shadow);}
+.hud-val{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--text);display:block;}
+.hud-val.green{color:var(--green);}
+.hud-val.cyan{color:var(--cyan);}
+.hud-sub{font-size:8px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;}
+
+/* BOTTOM STRIP: ETA + Route + Green Corridor all in one bar */
+.map-bottom-strip{position:absolute;bottom:0;left:0;right:0;background:rgba(255,255,255,.97);border-top:1px solid var(--border);padding:10px 12px;z-index:20;}
+.mbs-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.mbs-eta-block{}
+.mbs-eta-label{font-size:9px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;}
+.mbs-eta-val{font-family:'Exo 2',sans-serif;font-size:26px;font-weight:900;color:var(--green);line-height:1;display:flex;align-items:baseline;gap:4px;}
+.mbs-eta-unit{font-size:13px;color:var(--text3);font-weight:400;}
+.mbs-hospital{}
+.mbs-hosp-name{font-family:'Exo 2',sans-serif;font-size:13px;font-weight:800;color:var(--text);text-align:right;}
+.mbs-hosp-sub{font-size:10px;color:var(--text3);text-align:right;margin-top:1px;}
+/* Route pills row */
+.mbs-routes{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;}
+.route-pill{display:flex;align-items:center;gap:4px;padding:4px 9px;border-radius:20px;font-size:10px;font-weight:700;border:1px solid;cursor:pointer;transition:all .2s;font-family:'Exo 2',sans-serif;letter-spacing:.5px;}
+.route-pill.opt{background:var(--green-l);border-color:rgba(5,150,105,.3);color:var(--green);}
+.route-pill.alt{background:var(--amber-l);border-color:rgba(217,119,6,.25);color:var(--amber);}
+.route-pill.bad{background:var(--red-l);border-color:rgba(220,38,38,.2);color:var(--red);opacity:.7;cursor:default;}
+.route-pill .pill-eta{font-family:'JetBrains Mono',monospace;font-size:9px;opacity:.8;margin-left:2px;}
+/* Green corridor mini row */
+.mbs-corridor{display:flex;align-items:center;gap:8px;}
+.corridor-label{font-size:9px;font-weight:700;color:var(--green);letter-spacing:1.5px;text-transform:uppercase;white-space:nowrap;}
+.corridor-lights{display:flex;gap:5px;align-items:center;flex:1;}
+.cl-item{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;}
+.cl-dot{width:10px;height:10px;border-radius:50%;}
+.cl-dot.green{background:var(--green);box-shadow:0 0 5px rgba(5,150,105,.6);animation:sigBlink 1.2s ease infinite;}
+.cl-dot.amber{background:var(--amber);box-shadow:0 0 5px rgba(217,119,6,.6);animation:sigBlink .7s ease infinite;}
+.cl-dot.red-dot{background:var(--red);}
+.cl-dot.grey{background:var(--text3);}
+.cl-name{font-size:7px;color:var(--text3);text-align:center;line-height:1.2;max-width:40px;}
+.corridor-override{padding:3px 8px;border:1px solid rgba(5,150,105,.3);border-radius:6px;font-size:8px;font-weight:700;color:var(--green);background:var(--green-l);cursor:pointer;white-space:nowrap;}
+
+/* LEFT MID: A* badge */
+.map-astar-badge{position:absolute;top:50%;left:10px;transform:translateY(-50%);background:rgba(255,255,255,.92);border:1px solid var(--purple-l);border-radius:10px;padding:6px 9px;z-index:20;max-width:108px;box-shadow:var(--shadow);}
+.ab-title{font-size:8px;font-weight:700;color:var(--purple);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.ab-nodes{display:flex;align-items:center;gap:2px;flex-wrap:nowrap;overflow:hidden;}
+.ab-node{width:18px;height:18px;border-radius:50%;border:1.5px solid;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:7px;font-weight:700;flex-shrink:0;}
+.ab-node.start{background:#dbeafe;border-color:#3b82f6;color:#1d4ed8;}
+.ab-node.path{background:var(--green-l);border-color:var(--green);color:var(--green);}
+.ab-node.cur{background:var(--amber-l);border-color:var(--amber);color:var(--amber);animation:sdPulse 1s ease infinite;}
+.ab-node.done{background:var(--purple-l);border-color:var(--purple);color:var(--purple);}
+.ab-node.end{background:var(--red-l);border-color:var(--red);color:var(--red);}
+.ab-arr{color:var(--text3);font-size:8px;flex-shrink:0;}
+.ab-score{margin-top:4px;font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--green);text-align:center;}
+
+/* AI updates log — floating right side on map */
+.map-updates{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.93);border:1px solid var(--border);border-radius:11px;padding:7px 9px;z-index:20;width:140px;box-shadow:var(--shadow);}
+.mu-title{font-size:8px;font-weight:700;letter-spacing:1.5px;color:var(--text3);text-transform:uppercase;margin-bottom:5px;}
+.mu-item{display:flex;gap:5px;align-items:flex-start;margin-bottom:4px;}
+.mu-item:last-child{margin-bottom:0;}
+.mu-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;margin-top:3px;}
+.mu-dot.green{background:var(--green);}
+.mu-dot.amber{background:var(--amber);}
+.mu-dot.cyan{background:var(--cyan);}
+.mu-text{font-size:9px;color:var(--text2);line-height:1.35;}
+
+/* Progress bar between map and bottom strip */
+.map-progress{position:absolute;bottom:120px;left:12px;right:12px;z-index:20;}
+.mp-bar-bg{height:4px;background:rgba(0,0,0,.08);border-radius:2px;overflow:hidden;}
+.mp-bar-fill{height:100%;background:linear-gradient(90deg,var(--green),#34d399);border-radius:2px;animation:progFill 8s linear infinite;}
+@keyframes progFill{0%{width:10%}100%{width:88%}}
+.mp-labels{display:flex;justify-content:space-between;margin-top:3px;}
+.mp-label{font-size:8px;font-weight:700;background:rgba(255,255,255,.85);padding:1px 5px;border-radius:4px;color:var(--text3);}
+.mp-label.pct{color:var(--green);}
+
+/* ─── BOTTOM NAV ─── */
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:rgba(255,255,255,.97);backdrop-filter:blur(16px);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:10px 0 18px;z-index:100;box-shadow:0 -4px 20px rgba(0,0,0,.06);}
+.nav-btn{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;padding:5px 14px;border-radius:10px;transition:all .2s;}
+.nav-icon{font-size:20px;opacity:.4;transition:all .2s;}
+.nav-label{font-family:'Exo 2',sans-serif;font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--text3);text-transform:uppercase;}
+.nav-btn.active .nav-icon{opacity:1;}
+.nav-btn.active .nav-label{color:var(--cyan);}
+.nav-pip{width:4px;height:4px;border-radius:50%;background:var(--cyan);opacity:0;margin-top:1px;}
+.nav-btn.active .nav-pip{opacity:1;}
+
+/* ─── TOAST ─── */
+.toast{position:fixed;top:68px;left:50%;transform:translateX(-50%) translateY(-14px);background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:10px 18px;font-size:13px;font-weight:500;color:var(--text);z-index:999;opacity:0;transition:all .3s;white-space:nowrap;max-width:92%;box-shadow:var(--shadow-md);}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ─── ACCEPT MODAL ─── */
+.accept-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:200;backdrop-filter:blur(5px);align-items:flex-end;justify-content:center;}
+.accept-overlay.open{display:flex;animation:fadeIn .2s ease;}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.accept-sheet{background:var(--card);border-radius:24px 24px 0 0;border-top:1px solid var(--border);width:100%;max-width:480px;padding:22px 20px 40px;animation:sheetUp .3s ease;box-shadow:0 -8px 40px rgba(0,0,0,.12);}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.sheet-handle{width:40px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 18px;}
+.sheet-title{font-family:'Exo 2',sans-serif;font-size:20px;font-weight:800;color:var(--text);margin-bottom:4px;}
+.sheet-sub{font-size:13px;color:var(--text3);margin-bottom:16px;line-height:1.5;}
+.patient-card{padding:14px;background:var(--bg);border-radius:14px;border:1px solid var(--border);margin-bottom:16px;}
+.pc-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);}
+.pc-row:last-child{border-bottom:none;padding-bottom:0;}
+.pc-label{font-size:11px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;}
+.pc-val{font-family:'Exo 2',sans-serif;font-size:13px;font-weight:700;color:var(--text);}
+.pc-val.green{color:var(--green);}
+.pc-val.red{color:var(--red);}
+.pc-val.amber{color:var(--amber);}
+.pc-val.cyan{color:var(--cyan);}
+.btn-confirm{width:100%;padding:14px;border:none;border-radius:14px;background:linear-gradient(135deg,#047857,var(--green));color:white;font-family:'Exo 2',sans-serif;font-size:16px;font-weight:900;letter-spacing:2px;cursor:pointer;box-shadow:0 4px 18px rgba(5,150,105,.35);margin-bottom:10px;transition:all .2s;}
+.btn-confirm:hover{transform:translateY(-1px);}
+.btn-decline-sh{width:100%;padding:12px;border:1.5px solid rgba(220,38,38,.25);border-radius:14px;background:var(--red-l);color:var(--red);font-family:'Exo 2',sans-serif;font-size:14px;font-weight:700;cursor:pointer;}
+
+.gap{height:12px;}
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<div class="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-icon">🚑</div>
+      <div>
+        <div class="brand-text">JEEVANCONNECT</div>
+        <div class="brand-sub">DRIVER CONSOLE</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="status-pill available" id="statusPill" onclick="toggleStatus()">
+        <div class="sdot"></div>
+        <span id="statusLabel">AVAILABLE</span>
+      </div>
+      <div class="driver-av">👨</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- DRIVER STRIP -->
+    <div class="driver-strip">
+      <div class="driver-av2">👨‍✈️</div>
+      <div style="flex:1">
+        <div class="driver-name">Rajesh Kumar</div>
+        <div class="driver-meta">
+          <span>🚑 MH-15-AB-4821</span>
+          <span class="driver-id">DRV-4821</span>
+        </div>
+      </div>
+      <div class="shift-badge">ON SHIFT</div>
+    </div>
+
+    <!-- VEHICLE STATS -->
+    <div class="vehicle-bar">
+      <div class="vstat">
+        <span class="vstat-icon">⛽</span>
+        <span class="vstat-val green">87%</span>
+        <div class="vstat-label">Fuel</div>
+      </div>
+      <div class="vstat">
+        <span class="vstat-icon">🏎️</span>
+        <span class="vstat-val cyan" id="speedVal">0</span>
+        <div class="vstat-label">km/h</div>
+      </div>
+      <div class="vstat">
+        <span class="vstat-icon">📡</span>
+        <span class="vstat-val green">4G</span>
+        <div class="vstat-label">Signal</div>
+      </div>
+      <div class="vstat">
+        <span class="vstat-icon">🔋</span>
+        <span class="vstat-val amber">64%</span>
+        <div class="vstat-label">Battery</div>
+      </div>
+    </div>
+
+    <div class="gap"></div>
+
+    <!-- MISSION CARD -->
+    <div class="sec-hdr">
+      <div class="sec-title">Current Mission</div>
+      <div class="sec-action" onclick="simulateNewCall()">+ Simulate Call</div>
+    </div>
+
+    <div class="mission-card" id="missionCard">
+      <div class="mission-banner">
+        <div class="mission-type-row">
+          <div class="mtype-icon" id="missionIcon">🫀</div>
+          <div>
+            <div class="mtype-text" id="missionType">CARDIAC ARREST</div>
+            <div class="mtype-sub" id="missionId">CALL #JC-2024-0847</div>
+          </div>
+        </div>
+        <div class="priority-badge critical" id="priorityBadge">CRITICAL</div>
+      </div>
+      <div class="mission-details">
+        <div class="mission-row">
+          <div class="mrow-icon red">📍</div>
+          <div>
+            <div class="mrow-label">Patient Location</div>
+            <div class="mrow-val" id="patientLoc">Near Nashik Railway Station</div>
+            <div class="mrow-sub" id="patientCoords">20.0034°N, 73.7899°E</div>
+          </div>
+        </div>
+        <div class="mission-row">
+          <div class="mrow-icon green">🏥</div>
+          <div>
+            <div class="mrow-label">Assigned Hospital</div>
+            <div class="mrow-val green" id="assignedHosp">Civil Hospital, Nashik</div>
+            <div class="mrow-sub">14 ICU beds · Trauma bay ready</div>
+          </div>
+        </div>
+        <div class="mission-row">
+          <div class="mrow-icon amber">👤</div>
+          <div>
+            <div class="mrow-label">Patient</div>
+            <div class="mrow-val" id="patientName">Arjun Sharma, 28M</div>
+            <div class="mrow-sub" id="patientBlood">B+ · Penicillin allergy · Hypertension</div>
+          </div>
+        </div>
+        <div class="mission-row">
+          <div class="mrow-icon cyan">🤖</div>
+          <div>
+            <div class="mrow-label">AI Assignment</div>
+            <div class="mrow-val cyan">98.4% Match · Haversine: 1.2 km</div>
+            <div class="mrow-sub">A* Route: Gangapur Rd · CRITICAL Priority</div>
+          </div>
+        </div>
+      </div>
+      <div class="mission-actions" id="missionActions">
+        <button class="btn-accept" onclick="openAcceptModal()">✓ ACCEPT MISSION</button>
+        <button class="btn-decline" onclick="declineMission()">✕</button>
+      </div>
+    </div>
+
+    <div class="google-nav-panel">
+        <div class="google-nav-head">
+          <div>
+            <div class="google-nav-title">Best Route Navigation</div>
+            <div class="google-nav-sub">Real-time route to SOS location</div>
+          </div>
+          <button class="google-nav-btn" onclick="openGoogleNavInNewTab()">OPEN MAP</button>
+        </div>
+        <div id="googleMapsContainer" style="width: 100%; height: 300px; background: #e8eef5; position: relative; overflow: hidden;">
+          <div id="googleMap" style="width: 100%; height: 100%;"></div>
+          <div id="mapLoadingSpinner" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #64748b;">
+            <div style="font-size: 24px; margin-bottom: 8px;">📍</div>
+            <div style="font-size: 12px;">Loading map...</div>
+          </div>
+        </div>
+        <div style="padding: 14px 16px; background: #f8fafc; border-top: 1px solid var(--border);">
+          <div style="font-size: 11px; font-weight: 700; color: var(--text3); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">Route Summary</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+            <div style="text-align: center; padding: 8px; background: white; border-radius: 10px; border: 1px solid var(--border);">
+              <div style="font-size: 13px; color: var(--green); font-weight: 700;" id="routeDistance">1.2 km</div>
+              <div style="font-size: 10px; color: var(--text3); margin-top: 2px;">Distance</div>
+            </div>
+            <div style="text-align: center; padding: 8px; background: white; border-radius: 10px; border: 1px solid var(--border);">
+              <div style="font-size: 13px; color: var(--cyan); font-weight: 700;" id="routeETA">4 min</div>
+              <div style="font-size: 10px; color: var(--text3); margin-top: 2px;">ETA</div>
+            </div>
+            <div style="text-align: center; padding: 8px; background: white; border-radius: 10px; border: 1px solid var(--border);">
+              <div style="font-size: 13px; color: var(--amber); font-weight: 700;" id="routeSpeed">45 km/h</div>
+              <div style="font-size: 10px; color: var(--text3); margin-top: 2px;">Speed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /map-section -->
+
+    <div class="gap"></div>
+
+  </div><!-- /content -->
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active"><div class="nav-icon">🏠</div><div class="nav-label">Home</div><div class="nav-pip"></div></button>
+    <button class="nav-btn" onclick="showToast('🗺️ Navigation mode')"><div class="nav-icon">🗺️</div><div class="nav-label">Navigate</div><div class="nav-pip"></div></button>
+    <button class="nav-btn" onclick="showToast('📋 Mission history')"><div class="nav-icon">📋</div><div class="nav-label">History</div><div class="nav-pip"></div></button>
+    <button class="nav-btn" onclick="showToast('⚙️ Driver settings')"><div class="nav-icon">⚙️</div><div class="nav-label">Settings</div><div class="nav-pip"></div></button>
+  </nav>
+</div>
+
+<!-- ACCEPT MISSION MODAL -->
+<div class="accept-overlay" id="acceptOverlay">
+  <div class="accept-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">🚑 Confirm Mission</div>
+    <div class="sheet-sub">Review patient details before accepting.</div>
+    <div class="patient-card">
+      <div class="pc-row"><div class="pc-label">Emergency</div><div class="pc-val red" id="modalType">CARDIAC ARREST</div></div>
+      <div class="pc-row"><div class="pc-label">Patient</div><div class="pc-val">Arjun Sharma, 28M</div></div>
+      <div class="pc-row"><div class="pc-label">Blood Group</div><div class="pc-val amber">B Positive</div></div>
+      <div class="pc-row"><div class="pc-label">⚠ Allergy</div><div class="pc-val red">Penicillin</div></div>
+      <div class="pc-row"><div class="pc-label">Distance</div><div class="pc-val green">1.2 km — Haversine ✓</div></div>
+      <div class="pc-row"><div class="pc-label">Hospital</div><div class="pc-val cyan">Civil Hospital, Nashik</div></div>
+      <div class="pc-row"><div class="pc-label">A* Route</div><div class="pc-val green">Gangapur Rd · 4 min</div></div>
+      <div class="pc-row"><div class="pc-label">AI Confidence</div><div class="pc-val">98.4% match</div></div>
+    </div>
+    <button class="btn-confirm" onclick="confirmAccept()">🟢 CONFIRM & START NAVIGATION</button>
+    <button class="btn-decline-sh" onclick="closeAcceptModal()">Decline Mission</button>
+  </div>
+</div>
+
+<script>
+  const API_BASE_URL = window.__API_BASE_URL__ || ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'http://localhost:5000' : 'https://YOUR_BACKEND_URL');
+  window.__googleMapsApiReady = function () {
+    console.log('Google Maps API loaded');
+  };
+
+  const socketScript = document.createElement('script');
+  socketScript.src = API_BASE_URL + '/socket.io/socket.io.js';
+  socketScript.onload = function () {
+    window.__socketIoReady = true;
+    if (typeof window.__initDispatchSocket === 'function') {
+      window.__initDispatchSocket();
+    }
+  };
+  document.head.appendChild(socketScript);
+
+  (async function loadGoogleMapsScript() {
+    try {
+      const response = await fetch(API_BASE_URL + '/api/config');
+      const config = await response.json();
+      if (!config.googleMapsApiKey) {
+        console.warn('Google Maps API key missing from backend config');
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.async = true;
+      script.defer = true;
+      script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(config.googleMapsApiKey) + '&libraries=geometry&callback=__googleMapsApiReady';
+      document.head.appendChild(script);
+    } catch (error) {
+      console.error('Failed to load Google Maps API key from backend config', error);
+    }
+  })();
+</script>
+<script>
+  const DISPATCH_SERVER_URL = API_BASE_URL;
+  let dispatchSocket = null;
+
+  window.__initDispatchSocket = function () {
+    if (dispatchSocket || typeof io !== 'function') return;
+    dispatchSocket = io(DISPATCH_SERVER_URL, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      timeout: 5000
+    });
+
+    dispatchSocket.on('connect', () => {
+      dispatchSocket.emit('driver-register', {
+        driverId: 'DRV-8204',
+        name: 'Rajesh Kumar',
+        vehicle: 'MH-15-AB-4821',
+        isAvailable: isAvailable
+      });
+    });
+
+    dispatchSocket.on('dispatch-call', (incomingCall) => {
+      applyDispatchToMission(incomingCall);
+    });
+  };
+
+  window.__initDispatchSocket();
+
+  // TOAST
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3200);
+  }
+
+  const defaultCoords = { lat: 19.9975, lng: 73.7898 };
+  const fallbackDestination = { lat: 20.0034, lng: 73.7899 };
+  let driverCurrentLocation = { ...defaultCoords };
+
+  // STATUS TOGGLE
+  let isAvailable = true;
+  let currentDispatch = null;
+
+  function applyDispatchToMission(call) {
+    if (!call || !call.sosId) return;
+    currentDispatch = call;
+
+    const target = call.location && typeof call.location.lat === 'number' && typeof call.location.lng === 'number'
+      ? call.location
+      : fallbackDestination;
+
+    document.getElementById('missionIcon').textContent = '🚨';
+    document.getElementById('missionType').textContent = (call.emergencyType || 'EMERGENCY').toUpperCase();
+    document.getElementById('missionId').textContent = 'CALL #' + call.sosId;
+    document.getElementById('priorityBadge').textContent = 'CRITICAL';
+    document.getElementById('priorityBadge').className = 'priority-badge critical';
+
+    document.getElementById('patientLoc').textContent = 'Live SOS location received';
+    document.getElementById('patientCoords').textContent = `${target.lat.toFixed(4)}°N, ${target.lng.toFixed(4)}°E`;
+    document.getElementById('patientName').textContent = 'Citizen SOS Request';
+    document.getElementById('patientBlood').textContent = 'Medical profile available';
+    document.getElementById('assignedHosp').textContent = call.hospital || 'Civil Hospital, Nashik';
+    document.getElementById('etaHospName').textContent = call.hospital || 'Civil Hospital, Nashik';
+    document.getElementById('modalType').textContent = (call.emergencyType || 'EMERGENCY').toUpperCase();
+
+    document.getElementById('missionActions').innerHTML =
+      `<button class="btn-accept" onclick="openAcceptModal()">✓ ACCEPT MISSION</button>
+       <button class="btn-decline" onclick="declineMission()">✕</button>`;
+
+    renderGoogleRoute(driverCurrentLocation, target);
+    showToast('📲 New SOS assigned by dispatch');
+  }
+  function toggleStatus() {
+    isAvailable = !isAvailable;
+    const pill = document.getElementById('statusPill');
+    const label = document.getElementById('statusLabel');
+    pill.className = 'status-pill ' + (isAvailable ? 'available' : 'busy');
+    label.textContent = isAvailable ? 'AVAILABLE' : 'BUSY';
+    if (dispatchSocket && dispatchSocket.connected) {
+      dispatchSocket.emit('driver-register', {
+        driverId: 'DRV-8204',
+        name: 'Rajesh Kumar',
+        vehicle: 'MH-15-AB-4821',
+        isAvailable
+      });
+    }
+    showToast(isAvailable ? '🟢 Status: Available' : '🔴 Status: Busy');
+  }
+
+  // SPEED SIMULATION
+  let speed = 30, speedDir = 1;
+  setInterval(() => {
+    speed += speedDir * (Math.random() * 5);
+    if (speed > 75) speedDir = -1;
+    if (speed < 10) speedDir = 1;
+    const s = Math.round(speed);
+    document.getElementById('speedVal').textContent = s;
+    document.getElementById('mapSpeedVal').textContent = s;
+  }, 700);
+
+  // ETA COUNTDOWN
+  let etaMins = 4;
+  setInterval(() => {
+    if (etaMins > 0.5) etaMins -= 0.04;
+    const display = Math.max(1, Math.round(etaMins));
+    document.getElementById('mapEta').textContent = display;
+    const pct = Math.round(((4 - etaMins) / 4) * 100);
+    document.getElementById('progressPct').textContent = Math.min(99, pct) + '%';
+  }, 2000);
+
+  // SIGNAL COUNTDOWN
+  let sigSecs = 8;
+  setInterval(() => {
+    sigSecs--;
+    if (sigSecs < 0) sigSecs = 30;
+    document.getElementById('sigTimer').textContent = '00:' + String(sigSecs).padStart(2, '0');
+    if (sigSecs === 0) showToast('🟢 Old Agra Signal — CLEARED for corridor');
+  }, 1000);
+
+  // ACCEPT MODAL
+  function openAcceptModal() {
+    document.getElementById('acceptOverlay').classList.add('open');
+  }
+  function closeAcceptModal() {
+    document.getElementById('acceptOverlay').classList.remove('open');
+  }
+  document.getElementById('acceptOverlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('acceptOverlay')) closeAcceptModal();
+  });
+
+  function confirmAccept() {
+    closeAcceptModal();
+    document.getElementById('missionActions').innerHTML =
+      `<button class="btn-accept" style="background:linear-gradient(135deg,#0369a1,#0284c7);" onclick="showToast('🏁 Mission marked complete')">🏁 MARK COMPLETE</button>
+       <button class="btn-decline" onclick="showToast('📍 Arrived at patient')">📍 Arrived</button>`;
+    document.getElementById('statusPill').className = 'status-pill busy';
+    document.getElementById('statusLabel').textContent = 'BUSY';
+    isAvailable = false;
+
+    if (currentDispatch && currentDispatch.sosId) {
+      if (dispatchSocket && dispatchSocket.connected) {
+        dispatchSocket.emit('driver-accept-dispatch', {
+          sosId: currentDispatch.sosId,
+          driverName: 'Rajesh Kumar',
+          vehicle: 'MH-15-AB-4821'
+        });
+      }
+
+      // Legacy same-browser fallback.
+      localStorage.setItem('jc_dispatch_accept', JSON.stringify({
+        sosId: currentDispatch.sosId,
+        driverName: 'Rajesh Kumar',
+        vehicle: 'MH-15-AB-4821',
+        acceptedAt: Date.now()
+      }));
+    }
+
+    // Initialize map immediately and start navigation tracking
+    setTimeout(() => {
+      startGoogleNavigation();
+    }, 300);
+    showToast('🚑 Mission confirmed — Navigation started!');
+    setTimeout(() => showToast('📡 Hospital notified — Trauma bay prepared'), 3500);
+    setTimeout(() => showToast('🟢 Green corridor fully activated — 3 signals cleared'), 6500);
+  }
+
+  function declineMission() {
+    showToast('❌ Mission declined — reassigning to next unit...');
+    setTimeout(() => showToast('🔄 Call reassigned to DRV-5103'), 2000);
+  }
+
+  // SIMULATE NEW CALL
+  const callTypes = [
+    { icon:'🚗', type:'ROAD ACCIDENT', priority:'critical', badge:'CRITICAL', id:'JC-2024-0848', loc:'Nashik-Pune Hwy, Km 14', patient:'Rahul Patil, 35M', blood:'O+ · No known allergies', hosp:'Wockhardt Hospital' },
+    { icon:'🧠', type:'STROKE', priority:'critical', badge:'CRITICAL', id:'JC-2024-0849', loc:'Near Panchavati, Nashik', patient:'Sunita Devi, 62F', blood:'A+ · Warfarin medication', hosp:'Civil Hospital, Nashik' },
+    { icon:'🤕', type:'TRAUMA INJURY', priority:'medium', badge:'MEDIUM', id:'JC-2024-0850', loc:'CIDCO Colony, Nashik', patient:'Mohit Shah, 19M', blood:'B- · Latex allergy', hosp:'District Hospital' },
+  ];
+  let callIdx = 0;
+  function simulateNewCall() {
+    const c = callTypes[callIdx % callTypes.length]; callIdx++;
+    // Create destination 2-3 km away (much farther for visible route)
+    const sampleTarget = { 
+      lat: driverCurrentLocation.lat + 0.025 + (Math.random() * 0.015),
+      lng: driverCurrentLocation.lng + 0.025 + (Math.random() * 0.015)
+    };
+    currentDispatch = {
+      sosId: c.id,
+      emergencyType: c.type,
+      hospital: c.hosp,
+      location: sampleTarget
+    };
+
+    document.getElementById('missionIcon').textContent = c.icon;
+    document.getElementById('missionType').textContent = c.type;
+    document.getElementById('missionId').textContent = 'CALL #' + c.id;
+    document.getElementById('priorityBadge').textContent = c.badge;
+    document.getElementById('priorityBadge').className = 'priority-badge ' + c.priority;
+    document.getElementById('patientLoc').textContent = c.loc;
+    document.getElementById('patientCoords').textContent = `${sampleTarget.lat.toFixed(4)}°N, ${sampleTarget.lng.toFixed(4)}°E`;
+    document.getElementById('patientName').textContent = c.patient;
+    document.getElementById('patientBlood').textContent = c.blood;
+    document.getElementById('assignedHosp').textContent = c.hosp;
+    document.getElementById('etaHospName').textContent = c.hosp;
+    document.getElementById('modalType').textContent = c.type;
+    document.getElementById('missionActions').innerHTML =
+      `<button class="btn-accept" onclick="openAcceptModal()">✓ ACCEPT MISSION</button>
+       <button class="btn-decline" onclick="declineMission()">✕</button>`;
+    etaMins = 4;
+    console.log('📞 New SOS Call - Distance:', Math.sqrt(Math.pow(sampleTarget.lat - driverCurrentLocation.lat, 2) + Math.pow(sampleTarget.lng - driverCurrentLocation.lng, 2)) * 111, 'km');
+    renderGoogleRoute(driverCurrentLocation, sampleTarget);
+    showToast('📲 New call: ' + c.type);
+  }
+
+  function getCurrentDestination() {
+    if (currentDispatch && currentDispatch.location && typeof currentDispatch.location.lat === 'number' && typeof currentDispatch.location.lng === 'number') {
+      return currentDispatch.location;
+    }
+    return fallbackDestination;
+  }
+
+  let googleMap = null;
+  let directionsService = null;
+  let directionsRenderer = null;
+  let driverMarker = null;
+  let patientMarker = null;
+  let arrowMarkers = [];
+  let currentRouteStatus = 'clear'; // clear, moderate, heavy
+
+  // Create arrows along route to show direction
+  function addArrowsToRoute(route) {
+    // Clear old arrows
+    arrowMarkers.forEach(marker => marker.setMap(null));
+    arrowMarkers = [];
+    
+    const steps = route.legs[0].steps;
+    const arrowInterval = Math.max(1, Math.floor(steps.length / 5)); // Show 5 arrows max
+    
+    steps.forEach((step, idx) => {
+      if (idx % arrowInterval === 0) {
+        const location = step.end_location;
+        const nextStep = steps[idx + 1];
+        
+        // Get direction from instruction text
+        let arrow = '→';
+        const instruction = step.instructions.toLowerCase();
+        if (instruction.includes('left')) arrow = '↙';
+        if (instruction.includes('right')) arrow = '↗';
+        if (instruction.includes('straight')) arrow = '↑';
+        if (instruction.includes('turn') && instruction.includes('around')) arrow = '↻';
+        
+        const arrowMarker = new google.maps.Marker({
+          position: location,
+          map: googleMap,
+          label: {
+            text: arrow,
+            color: '#ffffff',
+            fontSize: '18px',
+            fontWeight: 'bold'
+          },
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: '#0284c7',
+            fillOpacity: 0.85,
+            strokeColor: '#ffffff',
+            strokeWeight: 2
+          },
+          title: step.instructions.replace(/<[^>]*>/g, ''),
+          zIndex: 50,
+          optimized: false
+        });
+        
+        arrowMarkers.push(arrowMarker);
+      }
+    });
+  }
+
+  function initializeGoogleMap() {
+    if (googleMap) return;
+    
+    const mapContainer = document.getElementById('googleMap');
+    if (!mapContainer) {
+      console.warn('Map container not found');
+      return;
+    }
+    
+    googleMap = new google.maps.Map(mapContainer, {
+      zoom: 15,
+      center: driverCurrentLocation,
+      mapTypeId: 'roadmap',
+      fullscreenControl: true,
+      mapTypeControl: true,
+      zoomControl: true,
+      styles: [
+        {
+          featureType: 'poi',
+          stylers: [{ visibility: 'off' }]
+        }
+      ]
+    });
+    
+    directionsService = new google.maps.DirectionsService();
+    directionsRenderer = new google.maps.DirectionsRenderer({
+      map: googleMap,
+      polylineOptions: {
+        strokeColor: '#059669',
+        strokeWeight: 7,
+        strokeOpacity: 0.95,
+        clickable: false
+      },
+      suppressMarkers: true,
+      preserveViewport: false
+    });
+    
+    // Driver/Ambulance marker (blue)
+    driverMarker = new google.maps.Marker({
+      position: driverCurrentLocation,
+      map: googleMap,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 10,
+        fillColor: '#0284c7',
+        fillOpacity: 1,
+        strokeColor: '#ffffff',
+        strokeWeight: 3
+      },
+      title: '🚑 Ambulance Location',
+      label: {
+        text: '🚑',
+        fontSize: '16px'
+      },
+      zIndex: 100,
+      animation: google.maps.Animation.DROP
+    });
+    
+    // Patient marker (red)
+    patientMarker = new google.maps.Marker({
+      position: driverCurrentLocation,
+      map: googleMap,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 10,
+        fillColor: '#dc2626',
+        fillOpacity: 1,
+        strokeColor: '#ffffff',
+        strokeWeight: 3
+      },
+      title: '🆘 Patient Location',
+      label: {
+        text: '🆘',
+        fontSize: '16px'
+      },
+      zIndex: 99,
+      animation: google.maps.Animation.DROP
+    });
+    
+    const spinner = document.getElementById('mapLoadingSpinner');
+    if (spinner) spinner.style.display = 'none';
+  }
+
+  function renderGoogleRoute(origin, destination) {
+    if (!origin || !destination) return;
+    
+    console.log('🗺️ renderGoogleRoute called - Origin:', origin, 'Destination:', destination);
+    
+    if (!googleMap) {
+      console.log('Initializing map...');
+      initializeGoogleMap();
+    }
+    
+    if (!googleMap || !directionsService) {
+      console.log('Maps not ready, retrying...');
+      showToast('Maps not ready. Retrying...');
+      setTimeout(() => renderGoogleRoute(origin, destination), 500);
+      return;
+    }
+    
+    // Update ambulance marker position
+    if (driverMarker && origin) {
+      driverMarker.setPosition(new google.maps.LatLng(origin.lat, origin.lng));
+      console.log('🚑 Ambulance marker updated');
+    }
+    
+    // Update patient marker position
+    if (patientMarker && destination) {
+      patientMarker.setPosition(new google.maps.LatLng(destination.lat, destination.lng));
+      console.log('🆘 Patient marker updated');
+    }
+    
+    const originLatLng = new google.maps.LatLng(origin.lat, origin.lng);
+    const destLatLng = new google.maps.LatLng(destination.lat, destination.lng);
+    
+    console.log('📍 Requesting directions...');
+    
+    // Request route with traffic data
+    directionsService.route({
+      origin: originLatLng,
+      destination: destLatLng,
+      travelMode: google.maps.TravelMode.DRIVING,
+      drivingOptions: {
+        departureTime: new Date(),
+        trafficModel: 'best_guess'
+      },
+      unitSystem: google.maps.UnitSystem.METRIC,
+      provideRouteAlternatives: false
+    }, (result, status) => {
+      console.log('📡 Directions API Response:', status);
+      
+      if (status === google.maps.DirectionsStatus.OK) {
+        console.log('✅ Route found!', result);
+        
+        // Clear any existing polylines
+        if (directionsRenderer) {
+          directionsRenderer.setMap(null);
+        }
+        
+        // Recreate directions renderer with route
+        directionsRenderer = new google.maps.DirectionsRenderer({
+          map: googleMap,
+          suppressMarkers: true,
+          preserveViewport: false,
+          polylineOptions: {
+            strokeColor: '#059669',
+            strokeWeight: 8,
+            strokeOpacity: 0.95,
+            clickable: false,
+            zIndex: 10
+          }
+        });
+        
+        const route = result.routes[0];
+        const leg = route.legs[0];
+        
+        // Check traffic conditions
+        let trafficStatus = 'clear';
+        let routeColor = '#059669'; // Green for clear
+        
+        if (leg.duration_in_traffic) {
+          const normalDuration = leg.duration.value;
+          const trafficDuration = leg.duration_in_traffic.value;
+          const delayPercent = ((trafficDuration - normalDuration) / normalDuration) * 100;
+          
+          if (delayPercent > 50) {
+            trafficStatus = 'heavy';
+            routeColor = '#dc2626'; // Red for heavy traffic
+            showToast('🚨 Heavy traffic! Rerouting...');
+          } else if (delayPercent > 20) {
+            trafficStatus = 'moderate';
+            routeColor = '#f59e0b'; // Amber for moderate
+            showToast('⚠️ Moderate traffic ahead');
+          } else {
+            trafficStatus = 'clear';
+            routeColor = '#059669'; // Green for clear
+            showToast('✅ Route: Clear!');
+          }
+        }
+        
+        currentRouteStatus = trafficStatus;
+        
+        // Set polyline options with traffic color
+        directionsRenderer.setOptions({
+          polylineOptions: {
+            strokeColor: routeColor,
+            strokeWeight: 8,
+            strokeOpacity: 0.95,
+            clickable: false,
+            zIndex: 10
+          }
+        });
+        
+        // Set the route
+        directionsRenderer.setDirections(result);
+        console.log('🎯 Route rendered with color:', routeColor);
+        
+        // Add directional arrows
+        addArrowsToRoute(route);
+        
+        const distanceValue = leg.distance.value / 1000;
+        const durationValue = Math.ceil(leg.duration_in_traffic ? leg.duration_in_traffic.value / 60 : leg.duration.value / 60);
+        const speedAvg = durationValue > 0 ? Math.round(distanceValue / (durationValue / 60)) : 45;
+        
+        // Update UI
+        const distEl = document.getElementById('routeDistance');
+        const etaEl = document.getElementById('routeETA');
+        const speedEl = document.getElementById('routeSpeed');
+        
+        if (distEl) distEl.textContent = distanceValue.toFixed(1) + ' km';
+        if (etaEl) etaEl.textContent = durationValue + ' min';
+        if (speedEl) speedEl.textContent = speedAvg + ' km/h';
+        
+        console.log(`
+🚑 BEST ROUTE CALCULATED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📍 Distance: ${leg.distance.text}
+⏱️  ETA: ${leg.duration_in_traffic ? leg.duration_in_traffic.text : leg.duration.text}
+🚦 Traffic: ${trafficStatus.toUpperCase()}
+🎯 Status: ${trafficStatus === 'heavy' ? '🔴 REROUTE' : trafficStatus === 'moderate' ? '🟡 MODERATE' : '🟢 CLEAR'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        
+        leg.steps.forEach((step, idx) => {
+          console.log(`   ${idx + 1}. ${step.instructions.replace(/<[^>]*>/g, '')} → ${step.distance.text}`);
+        });
+        
+        // Fit map to show entire route
+        const bounds = new google.maps.LatLngBounds();
+        bounds.extend(originLatLng);
+        bounds.extend(destLatLng);
+        route.legs.forEach(l => {
+          l.steps.forEach(step => {
+            bounds.extend(step.start_location);
+            bounds.extend(step.end_location);
+          });
+        });
+        googleMap.fitBounds(bounds, 100);
+        console.log('🗺️ Map bounds updated');
+        
+      } else {
+        console.error('❌ Directions error:', status);
+        // Fallback: simple line
+        const distanceLat = destination.lat - origin.lat;
+        const distanceLng = destination.lng - origin.lng;
+        const distance = Math.sqrt(distanceLat * distanceLat + distanceLng * distanceLng) * 111;
+        const eta = Math.max(1, Math.round(distance * 2));
+        
+        document.getElementById('routeDistance').textContent = distance.toFixed(1) + ' km';
+        document.getElementById('routeETA').textContent = eta + ' min';
+        document.getElementById('routeSpeed').textContent = '45 km/h';
+        
+        const bounds = new google.maps.LatLngBounds();
+        bounds.extend(originLatLng);
+        bounds.extend(destLatLng);
+        googleMap.fitBounds(bounds);
+        
+        showToast('📡 Using fallback routing');
+      }
+    });
+  }
+        
+  function openGoogleNavInNewTab() {
+    const destination = getCurrentDestination();
+    const mapsUrl = `https://www.google.com/maps/dir/${driverCurrentLocation.lat},${driverCurrentLocation.lng}/${destination.lat},${destination.lng}?travelmode=driving`;
+    window.open(mapsUrl, '_blank');
+  }
+
+  function startGoogleNavigation() {
+    const destination = getCurrentDestination();
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        driverCurrentLocation = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude
+        };
+        initializeGoogleMap();
+        renderGoogleRoute(driverCurrentLocation, destination);
+        showToast('📍 Location updated');
+      }, (err) => {
+        console.log('Geolocation error:', err);
+        initializeGoogleMap();
+        renderGoogleRoute(driverCurrentLocation, destination);
+        showToast('📍 Using last known location');
+      }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 5000 });
+    } else {
+      initializeGoogleMap();
+      renderGoogleRoute(driverCurrentLocation, destination);
+      showToast('📍 Geolocation unavailable');
+    }
+  }
+
+  // ROUTE SELECTION
+  function selectRoute(el, type) {
+    if (type === 'bad') return;
+    document.querySelectorAll('.route-pill:not(.bad)').forEach(p => {
+      p.className = p.className.replace(' opt', '').replace(' alt', '');
+    });
+    el.classList.add(type === 'opt' ? 'opt' : 'alt');
+    showToast(type === 'opt' ? '✓ Optimal route selected' : '⚠ Alternate route — AI recalculating...');
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeAcceptModal();
+  });
+
+  // Cross-dashboard dispatch sync
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'jc_dispatch_call' && e.newValue) {
+      try {
+        const incomingCall = JSON.parse(e.newValue);
+        applyDispatchToMission(incomingCall);
+      } catch (_) {
+        // ignore malformed payload
+      }
+    }
+  });
+
+  // Load existing dispatch if dashboard opens after SOS
+  try {
+    const existingDispatch = localStorage.getItem('jc_dispatch_call');
+    if (existingDispatch) {
+      applyDispatchToMission(JSON.parse(existingDispatch));
+    }
+  } catch (_) {
+    // ignore malformed payload
+  }
+
+  // Initialize route preview at page load.
+  startGoogleNavigation();
+</script>
+</body>
+</html>
