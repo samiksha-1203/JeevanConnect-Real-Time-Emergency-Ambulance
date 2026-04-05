@@ -1169,6 +1169,53 @@
     const socketScript = document.createElement('script');
     socketScript.src = apiBase + '/socket.io/socket.io.js';
     document.head.appendChild(socketScript);
+
+    async function warmBackend() {
+        try {
+            await fetch(`${apiBase}/health`, { method: 'GET', cache: 'no-store' });
+        } catch (_) {
+            // Ignore warm-up failures; user actions will retry with full error handling.
+        }
+    }
+
+    async function fetchJsonWithRetry(url, options = {}, retries = 1, timeoutMs = 10000) {
+        let lastError = null;
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+
+                const contentType = response.headers.get('content-type') || '';
+                const isJson = contentType.includes('application/json');
+                const data = isJson ? await response.json() : null;
+
+                if (!response.ok) {
+                    const message = (data && data.message) ? data.message : `Request failed (${response.status})`;
+                    throw new Error(message);
+                }
+
+                if (!isJson) {
+                    throw new Error('Unexpected response format from server');
+                }
+
+                return data;
+            } catch (error) {
+                clearTimeout(timeout);
+                lastError = error;
+                if (attempt < retries) {
+                    await new Promise(resolve => setTimeout(resolve, 1200));
+                }
+            }
+        }
+        throw lastError || new Error('Network request failed');
+    }
+
+    warmBackend();
     const DUMMY_DRIVER_CREDS = [
         { ambulanceId: 'AMB-MH-2847', phone: '9876543210', name: 'Rajesh Kumar', vehicle: 'MH-15-AB-4821' },
         { ambulanceId: 'AMB-MH-5103', phone: '9988776655', name: 'Priya Nair', vehicle: 'MH-15-CD-5103' }
@@ -1467,12 +1514,12 @@
         statusEl.className = 'status-note';
 
         try {
-            const response = await fetch(`${apiBase}/api/auth/check-phone`, {
+            const data = await fetchJsonWithRetry(`${apiBase}/api/auth/check-phone`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone, type })
-            });
-            const data = await response.json();
+            }, 1, 12000);
+
             if (!data.success) {
                 statusEl.textContent = data.message || 'Unable to verify phone';
                 statusEl.className = 'status-note error';
@@ -1500,7 +1547,7 @@
             statusEl.className = 'status-note error';
             return false;
         } catch (error) {
-            statusEl.textContent = 'Network error while checking phone.';
+            statusEl.textContent = `Network error while checking phone. (${error.message || 'Please retry'})`;
             statusEl.className = 'status-note error';
             return false;
         }
