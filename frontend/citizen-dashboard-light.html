@@ -854,7 +854,7 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="http://localhost:5000/socket.io/socket.io.js"></script>
+<script src="https://jeevanconnect-real-time-emergency.onrender.com/socket.io/socket.io.js"></script>
 <script>
     const hour = new Date().getHours();
     document.getElementById('greetTime').textContent = hour < 12 ? 'GOOD MORNING' : hour < 17 ? 'GOOD AFTERNOON' : 'GOOD EVENING';
@@ -892,7 +892,7 @@
     }
 
     const storedCitizen = JSON.parse(localStorage.getItem('user') || '{}');
-    const DISPATCH_SERVER_URL = 'http://localhost:5000';
+    const DISPATCH_SERVER_URL = 'https://jeevanconnect-real-time-emergency.onrender.com';
     const dispatchSocket = typeof io === 'function' ? io(DISPATCH_SERVER_URL, {
         transports: ['websocket', 'polling'],
         reconnection: true,

@@ -1165,7 +1165,7 @@
     let sirenPlayed = false;
     document.addEventListener('click', () => { if (!sirenPlayed) { sirenPlayed = true; playSiren(); } }, { once: true });
 
-    const apiBase = window.__API_BASE_URL__ || ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'http://localhost:5000' : 'https://YOUR_BACKEND_URL');
+    const apiBase = window.__API_BASE_URL__ || ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'http://localhost:5000' : 'https://jeevanconnect-real-time-emergency.onrender.com');
     const socketScript = document.createElement('script');
     socketScript.src = apiBase + '/socket.io/socket.io.js';
     document.head.appendChild(socketScript);
