@@ -387,6 +387,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
 
     let smsStatus = 'skipped';
     let smsProvider = 'none';
+    let smsError = null;
 
     if (twilioVerifyServiceSid) {
       const sent = await sendOtpViaTwilioVerify(phone);
@@ -404,7 +405,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
       }
     }
 
-    if (smsStatus !== 'sent' && twilioClient && twilioFromNumber) {
+    if (smsStatus !== 'sent' && !twilioVerifyServiceSid && twilioClient && twilioFromNumber) {
       try {
         await twilioClient.messages.create({
           body: `Your Jeevan Connect OTP is ${otp}. It expires in 5 minutes.`,
@@ -415,6 +416,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
         smsProvider = 'twilio-sms';
       } catch (twilioError) {
         smsStatus = 'failed';
+        smsError = twilioError.message || String(twilioError);
         console.error('Twilio SMS error:', twilioError.message || twilioError);
       }
     }
@@ -426,6 +428,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
         : 'OTP generated. Check backend log or configure SMS provider to send OTP.',
       smsStatus,
       provider: smsProvider,
+      error: smsError || undefined,
       // Always return demo OTP so deployment demos can continue even if SMS providers throttle or fail.
       demoOtp: otp
     };
