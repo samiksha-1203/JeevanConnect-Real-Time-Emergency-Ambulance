@@ -150,6 +150,26 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    service: 'Jeevan Connect Backend',
+    message: 'API is running',
+    endpoints: {
+      config: '/api/config',
+      health: '/health'
+    }
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    status: 'ok',
+    uptime: Math.round(process.uptime())
+  });
+});
+
 app.get('/api/config', (req, res) => {
   res.json({
     googleMapsApiKey
