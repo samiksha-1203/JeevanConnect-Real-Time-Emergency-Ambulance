@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JeevanConnect — Hospital Command Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Oxanium:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #f4f6f9;
+  --surface:  #ffffff;
+  --surface2: #f8fafc;
+  --border:   #e4e9f0;
+  --border2:  #d0d9e6;
+  --text:     #0d1b2e;
+  --text2:    #3d5166;
+  --muted:    #7a90a8;
+
+  --blue:     #1a6ef7;
+  --blue-bg:  #eff4ff;
+  --blue-b:   #c3d7fe;
+
+  --red:      #e0282e;
+  --red-bg:   #fff0f0;
+  --red-b:    #ffc5c5;
+
+  --green:    #11a75c;
+  --green-bg: #effaf4;
+  --green-b:  #a7e8c6;
+
+  --amber:    #d98000;
+  --amber-bg: #fff8ec;
+  --amber-b:  #fcd89a;
+
+  --purple:   #7c3aed;
+  --purple-bg:#f5f0ff;
+  --purple-b: #d4b8fe;
+
+  --teal:     #0891b2;
+  --teal-bg:  #ecfeff;
+  --teal-b:   #a5e7f5;
+
+  --font-head: 'Oxanium', sans-serif;
+  --font-body: 'Space Grotesk', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --r-sm: 10px; --r-md: 14px; --r-lg: 18px; --r-xl: 22px;
+  --sh-sm: 0 1px 4px rgba(13,27,46,0.06), 0 2px 12px rgba(13,27,46,0.04);
+  --sh-md: 0 2px 8px rgba(13,27,46,0.07), 0 6px 24px rgba(13,27,46,0.06);
+  --sh-lg: 0 4px 16px rgba(13,27,46,0.08), 0 12px 40px rgba(13,27,46,0.08);
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;font-size:14px}
+
+/* ══════════ SCROLLBAR ══════════ */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ══════════ TOP HEADER ══════════ */
+.topbar{
+  height:58px;background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;position:sticky;top:0;z-index:200;
+  box-shadow:var(--sh-sm);
+}
+.tb-left{display:flex;align-items:center;gap:14px}
+.tb-logo{display:flex;align-items:center;gap:8px}
+.logo-c{font-family:var(--font-head);font-size:22px;font-weight:800;background:linear-gradient(135deg,#1a6ef7,#11a75c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.logo-text{display:flex;flex-direction:column;line-height:1;gap:1px}
+.logo-name{font-family:var(--font-head);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--blue)}
+.logo-sub{font-size:10px;color:var(--muted);letter-spacing:1px}
+.tb-divider{width:1px;height:28px;background:var(--border)}
+.tb-hospital{display:flex;flex-direction:column;gap:1px}
+.tb-hosp-name{font-weight:700;font-size:14px;color:var(--text)}
+.tb-hosp-id{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+.tb-right{display:flex;align-items:center;gap:12px}
+.tb-time{font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--text2);background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 10px}
+.tb-alert-btn{display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--r-sm);border:none;background:var(--red);color:white;font-family:var(--font-head);font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .2s;box-shadow:0 2px 10px rgba(224,40,46,0.3)}
+.tb-alert-btn:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(224,40,46,0.4)}
+.tb-logout-btn{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:var(--r-sm);border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-family:var(--font-body);font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;transition:all .2s}
+.tb-logout-btn:hover{background:white;border-color:var(--blue);color:var(--blue)}
+.tb-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--blue),#4d94ff);display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid var(--blue-bg);cursor:pointer}
+.status-chip{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.5px}
+.status-chip.online{background:var(--green-bg);border:1px solid var(--green-b);color:var(--green)}
+.status-dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 1.4s ease infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+
+/* ══════════ AUTH OVERLAY ══════════ */
+.auth-overlay{
+  position:fixed;inset:0;z-index:1200;
+  background:linear-gradient(145deg, rgba(26,110,247,0.12), rgba(13,27,46,0.22));
+  display:flex;align-items:center;justify-content:center;
+  padding:20px;
+}
+.auth-overlay.hidden{display:none}
+.auth-card{
+  width:min(460px, 96vw);
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r-xl);
+  box-shadow:var(--sh-lg);
+  padding:24px;
+}
+.auth-title{font-family:var(--font-head);font-size:22px;font-weight:800;color:var(--text);margin-bottom:4px}
+.auth-sub{font-size:12px;color:var(--muted);margin-bottom:18px}
+.auth-grid{display:grid;gap:12px}
+.auth-field{display:flex;flex-direction:column;gap:6px}
+.auth-label{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--text2);text-transform:uppercase}
+.auth-input{
+  height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--border2);
+  font-family:var(--font-body);font-size:14px;color:var(--text);
+  background:var(--surface2);
+}
+.auth-input:focus{outline:none;border-color:var(--blue);background:white}
+.auth-actions{display:flex;gap:10px;align-items:center;margin-top:8px}
+.auth-btn{
+  border:none;border-radius:10px;padding:10px 14px;
+  background:var(--blue);color:white;font-weight:700;letter-spacing:.4px;
+  cursor:pointer;
+}
+.auth-btn:disabled{opacity:.65;cursor:not-allowed}
+.auth-note{font-size:11px;color:var(--muted)}
+.auth-error{font-size:12px;color:var(--red);min-height:16px}
+
+/* ══════════ LAYOUT ══════════ */
+.shell{display:grid;grid-template-columns:220px 1fr;min-height:calc(100vh - 58px)}
+
+/* ══════════ SIDEBAR ══════════ */
+.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:16px 12px;display:flex;flex-direction:column;gap:4px;overflow-y:auto}
+.sidebar-section-label{font-size:10px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;padding:8px 10px 4px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r-sm);cursor:pointer;transition:all .2s;text-decoration:none;color:var(--text2);font-size:13px;font-weight:500;border:none;background:none;width:100%}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{background:var(--blue-bg);color:var(--blue);font-weight:600}
+.nav-item.active .nav-icon{filter:none}
+.nav-icon{font-size:16px;flex-shrink:0}
+.nav-badge{margin-left:auto;font-family:var(--font-mono);font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px}
+.nav-badge.red{background:var(--red-bg);color:var(--red)}
+.nav-badge.green{background:var(--green-bg);color:var(--green)}
+.nav-badge.amber{background:var(--amber-bg);color:var(--amber)}
+.sidebar-bottom{margin-top:auto;padding-top:12px;border-top:1px solid var(--border)}
+.hosp-status-card{background:var(--green-bg);border:1px solid var(--green-b);border-radius:var(--r-md);padding:12px}
+.hsc-label{font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--green);text-transform:uppercase;margin-bottom:6px}
+.hsc-level{font-family:var(--font-head);font-size:20px;font-weight:800;color:var(--green)}
+.hsc-sub{font-size:11px;color:var(--text2);margin-top:2px}
+
+/* ══════════ MAIN ══════════ */
+.main{overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:18px}
+
+/* ══════════ TOP ALERT BANNER ══════════ */
+.alert-banner{
+  background:linear-gradient(135deg,#fff0f0,#fff5f5);
+  border:1.5px solid var(--red-b);border-radius:var(--r-lg);
+  padding:14px 18px;display:flex;align-items:center;gap:14px;
+  animation:bannerPulse 2s ease infinite;
+}
+@keyframes bannerPulse{0%,100%{border-color:var(--red-b)}50%{border-color:var(--red)}}
+.ab-icon{font-size:22px;flex-shrink:0}
+.ab-content{flex:1}
+.ab-title{font-weight:700;font-size:14px;color:var(--red)}
+.ab-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.ab-actions{display:flex;gap:8px;flex-shrink:0}
+.ab-btn{padding:7px 14px;border:none;border-radius:var(--r-sm);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
+.ab-btn.primary{background:var(--red);color:white;box-shadow:0 2px 8px rgba(224,40,46,0.25)}
+.ab-btn.primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(224,40,46,0.35)}
+.ab-btn.ghost{background:white;color:var(--text2);border:1px solid var(--border)}
+.ab-btn.ghost:hover{border-color:var(--border2);background:var(--surface2)}
+.ab-eta{font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--red);background:white;border:1px solid var(--red-b);border-radius:var(--r-sm);padding:3px 8px;align-self:center}
+
+/* ══════════ SECTION HEADERS ══════════ */
+.section-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.section-title{font-family:var(--font-head);font-size:14px;font-weight:700;letter-spacing:1px;color:var(--text);display:flex;align-items:center;gap:8px}
+.section-title::before{content:'';display:block;width:3px;height:16px;border-radius:2px;background:var(--blue)}
+.section-action{font-size:12px;color:var(--blue);cursor:pointer;font-weight:500;background:none;border:none;padding:4px 8px;border-radius:var(--r-sm);transition:background .2s}
+.section-action:hover{background:var(--blue-bg)}
+
+/* ══════════ STATS ROW ══════════ */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;box-shadow:var(--sh-sm);position:relative;overflow:hidden;transition:all .2s}
+.stat-card:hover{box-shadow:var(--sh-md);transform:translateY(-2px)}
+.stat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent,var(--blue))}
+.stat-card.red{--accent:var(--red)} .stat-card.green{--accent:var(--green)}
+.stat-card.amber{--accent:var(--amber)} .stat-card.blue{--accent:var(--blue)}
+.stat-card.purple{--accent:var(--purple)} .stat-card.teal{--accent:var(--teal)}
+.stat-icon{font-size:20px;margin-bottom:8px;display:block}
+.stat-val{font-family:var(--font-head);font-size:28px;font-weight:800;line-height:1;color:var(--text)}
+.stat-label{font-size:11px;color:var(--muted);margin-top:3px;font-weight:500;letter-spacing:.5px;text-transform:uppercase}
+.stat-change{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;margin-top:6px}
+.stat-change.up{color:var(--red)} .stat-change.down{color:var(--green)} .stat-change.neutral{color:var(--muted)}
+.stat-sparkline{position:absolute;bottom:0;right:0;width:60px;height:32px;opacity:.15}
+
+/* ══════════ 2-COLUMN GRID ══════════ */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+
+/* ══════════ CARD ══════════ */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--sh-sm);overflow:hidden}
+.card-head{padding:16px 18px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-head-left{display:flex;align-items:center;gap:10px}
+.card-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.card-icon.red{background:var(--red-bg)} .card-icon.green{background:var(--green-bg)}
+.card-icon.blue{background:var(--blue-bg)} .card-icon.amber{background:var(--amber-bg)}
+.card-icon.purple{background:var(--purple-bg)} .card-icon.teal{background:var(--teal-bg)}
+.card-title{font-family:var(--font-head);font-size:14px;font-weight:700;color:var(--text)}
+.card-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.card-body{padding:16px 18px}
+
+/* ══════════ INCOMING AMBULANCES ══════════ */
+.amb-list{display:flex;flex-direction:column;gap:10px}
+.amb-card{
+  border-radius:var(--r-md);border:1px solid var(--border);background:var(--surface2);
+  overflow:hidden;transition:all .2s;cursor:pointer;
+}
+.amb-card:hover{box-shadow:var(--sh-sm);border-color:var(--border2)}
+.amb-card.critical{border-color:var(--red-b);background:var(--red-bg)}
+.amb-card.high{border-color:var(--amber-b);background:var(--amber-bg)}
+.amb-card.medium{border-color:var(--blue-b);background:var(--blue-bg)}
+.amb-top{padding:11px 14px;display:flex;align-items:center;gap:10px}
+.amb-siren{font-size:22px;flex-shrink:0;animation:sirenBlink 1s ease infinite}
+@keyframes sirenBlink{0%,100%{filter:brightness(1)}50%{filter:brightness(1.4)}}
+.amb-card.high .amb-siren{animation:none}
+.amb-card.medium .amb-siren{animation:none}
+.amb-info{flex:1}
+.amb-id{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--text)}
+.amb-patient{font-size:13px;font-weight:600;color:var(--text);margin-top:1px}
+.amb-type{font-size:11px;color:var(--text2);margin-top:1px}
+.amb-eta-wrap{text-align:right;flex-shrink:0}
+.amb-eta-val{font-family:var(--font-head);font-size:18px;font-weight:800;line-height:1}
+.amb-eta-val.critical{color:var(--red)} .amb-eta-val.high{color:var(--amber)} .amb-eta-val.medium{color:var(--blue)}
+.amb-eta-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.amb-bottom{display:flex;border-top:1px solid rgba(0,0,0,0.05);background:rgba(255,255,255,0.5)}
+.amb-chip{flex:1;padding:7px 10px;font-size:11px;font-weight:600;color:var(--text2);text-align:center;border-right:1px solid rgba(0,0,0,0.05);display:flex;flex-direction:column;gap:1px}
+.amb-chip:last-child{border-right:none}
+.amb-chip span{font-size:10px;font-weight:400;color:var(--muted)}
+.amb-progress{height:3px;background:rgba(0,0,0,0.06)}
+.amb-progress-fill{height:100%;border-radius:2px;transition:width 1s ease}
+.amb-progress-fill.critical{background:var(--red)} .amb-progress-fill.high{background:var(--amber)} .amb-progress-fill.medium{background:var(--blue)}
+
+/* ══════════ BED MANAGEMENT ══════════ */
+.bed-tabs{display:flex;gap:4px;padding:10px 18px;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
+.bed-tab{flex-shrink:0;padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;transition:all .2s;white-space:nowrap}
+.bed-tab.active{background:var(--blue);color:white;border-color:var(--blue)}
+.bed-tab:hover:not(.active){border-color:var(--border2);background:white}
+.bed-grid-wrap{padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+.ward-row{display:flex;flex-direction:column;gap:6px}
+.ward-header{display:flex;align-items:center;justify-content:space-between}
+.ward-name{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
+.ward-count{font-family:var(--font-mono);font-size:11px;font-weight:600}
+.ward-count.good{color:var(--green)} .ward-count.warn{color:var(--amber)} .ward-count.crit{color:var(--red)}
+.bed-visual{display:flex;flex-wrap:wrap;gap:4px}
+.bed-sq{width:18px;height:18px;border-radius:4px;border:1px solid;transition:all .2s;cursor:pointer;position:relative}
+.bed-sq:hover{transform:scale(1.15);z-index:10}
+.bed-sq.occupied{background:var(--red-bg);border-color:var(--red-b)}
+.bed-sq.available{background:var(--green-bg);border-color:var(--green-b)}
+.bed-sq.reserved{background:var(--amber-bg);border-color:var(--amber-b)}
+.bed-sq.maintenance{background:#f1f5f9;border-color:#d0d9e6}
+.bed-sq.incoming{background:var(--purple-bg);border-color:var(--purple-b);animation:bedspark .8s ease infinite}
+@keyframes bedspark{0%,100%{opacity:1}50%{opacity:.5}}
+.bed-legend{display:flex;gap:12px;flex-wrap:wrap;padding:0 18px 14px}
+.bed-leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+.bed-leg-dot{width:10px;height:10px;border-radius:3px;border:1px solid}
+.bed-leg-dot.occupied{background:var(--red-bg);border-color:var(--red-b)}
+.bed-leg-dot.available{background:var(--green-bg);border-color:var(--green-b)}
+.bed-leg-dot.reserved{background:var(--amber-bg);border-color:var(--amber-b)}
+.bed-leg-dot.maintenance{background:#f1f5f9;border-color:#d0d9e6}
+.bed-leg-dot.incoming{background:var(--purple-bg);border-color:var(--purple-b)}
+.bed-update-wrap{border-top:1px solid var(--border);padding:14px 18px 16px;background:#fbfdff}
+.bed-update-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.bed-update-title{font-size:12px;font-weight:700;letter-spacing:.5px;color:var(--text2)}
+.bed-update-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.bed-update-field{display:flex;flex-direction:column;gap:4px}
+.bed-update-field label{font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase}
+.bed-update-field input{height:34px;padding:0 8px;border:1px solid var(--border2);border-radius:8px;background:white;font-family:var(--font-mono);font-size:13px}
+.bed-update-actions{display:flex;align-items:center;gap:8px;margin-top:10px}
+.bed-save-btn{height:34px;padding:0 12px;border:none;border-radius:8px;background:var(--green);color:white;font-weight:700;cursor:pointer}
+.bed-save-btn:disabled{opacity:.65;cursor:not-allowed}
+.bed-update-msg{font-size:11px;color:var(--muted)}
+
+/* ══════════ PRE-ARRIVAL PATIENTS ══════════ */
+.patient-list{display:flex;flex-direction:column;gap:8px;padding:14px 18px}
+.patient-card{border-radius:var(--r-md);border:1px solid var(--border);background:var(--surface2);padding:12px 14px;display:flex;gap:12px;align-items:flex-start;transition:all .2s;cursor:pointer}
+.patient-card:hover{background:white;border-color:var(--border2);box-shadow:var(--sh-sm)}
+.patient-card.critical{border-left:3px solid var(--red)}
+.patient-card.high{border-left:3px solid var(--amber)}
+.patient-card.medium{border-left:3px solid var(--blue)}
+.patient-card.stable{border-left:3px solid var(--green)}
+.pt-avatar{width:38px;height:38px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px}
+.pt-avatar.critical{background:var(--red-bg)} .pt-avatar.high{background:var(--amber-bg)}
+.pt-avatar.medium{background:var(--blue-bg)} .pt-avatar.stable{background:var(--green-bg)}
+.pt-info{flex:1}
+.pt-name{font-size:13px;font-weight:700;color:var(--text)}
+.pt-detail{font-size:11px;color:var(--muted);margin-top:2px}
+.pt-condition{font-size:12px;font-weight:600;color:var(--text2);margin-top:3px}
+.pt-vitals{display:flex;gap:8px;margin-top:5px;flex-wrap:wrap}
+.pt-vital{font-family:var(--font-mono);font-size:10px;font-weight:500;padding:2px 7px;border-radius:5px;background:var(--surface);border:1px solid var(--border)}
+.pt-vital.warn{color:var(--amber);background:var(--amber-bg);border-color:var(--amber-b)}
+.pt-vital.crit{color:var(--red);background:var(--red-bg);border-color:var(--red-b)}
+.pt-right{text-align:right;flex-shrink:0}
+.pt-eta{font-family:var(--font-head);font-size:16px;font-weight:800;color:var(--blue);display:block}
+.pt-eta-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.pt-sev-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;letter-spacing:.5px;margin-top:5px;text-transform:uppercase}
+.pt-sev-badge.critical{background:var(--red-bg);color:var(--red);border:1px solid var(--red-b)}
+.pt-sev-badge.high{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-b)}
+.pt-sev-badge.medium{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-b)}
+.pt-sev-badge.stable{background:var(--green-bg);color:var(--green);border:1px solid var(--green-b)}
+.pt-allergy-tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;background:#fff0f0;border:1px solid var(--red-b);color:var(--red);margin-top:3px;margin-right:3px}
+
+/* ══════════ RESOURCE ALLOCATION ══════════ */
+.resource-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 18px}
+.resource-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px;transition:all .2s;cursor:pointer}
+.resource-item:hover{background:white;border-color:var(--border2);box-shadow:var(--sh-sm)}
+.ri-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.ri-name{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px}
+.ri-icon{font-size:16px}
+.ri-count{font-family:var(--font-head);font-size:18px;font-weight:800;color:var(--text)}
+.ri-count span{font-size:12px;font-weight:400;color:var(--muted)}
+.ri-bar-bg{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.ri-bar{height:100%;border-radius:3px;transition:width .8s ease}
+.ri-bar.green{background:var(--green)} .ri-bar.amber{background:var(--amber)} .ri-bar.red{background:var(--red)} .ri-bar.blue{background:var(--blue)}
+.ri-footer{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--muted)}
+.ri-footer span{font-weight:600;color:var(--text2)}
+
+/* ══════════ EMERGENCY PREPAREDNESS ══════════ */
+.prep-grid{display:flex;flex-direction:column;gap:8px;padding:14px 18px}
+.prep-item{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--surface2);transition:all .2s}
+.prep-item:hover{background:white;box-shadow:var(--sh-sm)}
+.prep-icon-wrap{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.prep-info{flex:1}
+.prep-name{font-size:13px;font-weight:600;color:var(--text)}
+.prep-desc{font-size:11px;color:var(--muted);margin-top:1px}
+.prep-status{display:flex;align-items:center;gap:6px;margin-top:4px}
+.prep-bar-bg{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.prep-bar{height:100%;border-radius:3px}
+.prep-bar.green{background:var(--green)} .prep-bar.amber{background:var(--amber)} .prep-bar.red{background:var(--red)}
+.prep-pct{font-family:var(--font-mono);font-size:11px;font-weight:700;min-width:32px;text-align:right}
+.prep-pct.green{color:var(--green)} .prep-pct.amber{color:var(--amber)} .prep-pct.red{color:var(--red)}
+.prep-right{text-align:right;flex-shrink:0}
+.prep-badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:6px;text-transform:uppercase;letter-spacing:.5px}
+.prep-badge.ready{background:var(--green-bg);color:var(--green);border:1px solid var(--green-b)}
+.prep-badge.warn{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-b)}
+.prep-badge.critical{background:var(--red-bg);color:var(--red);border:1px solid var(--red-b)}
+
+/* ══════════ SPECIALTY SERVICES ══════════ */
+.specialty-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 18px}
+.spec-card{border-radius:var(--r-md);border:1px solid var(--border);background:var(--surface2);padding:14px;text-align:center;cursor:pointer;transition:all .25s;position:relative;overflow:hidden}
+.spec-card:hover{transform:translateY(-2px);box-shadow:var(--sh-md);background:white}
+.spec-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--s-color)}
+.spec-emoji{font-size:28px;display:block;margin-bottom:8px}
+.spec-name{font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px}
+.spec-avail{font-size:11px;font-weight:600}
+.spec-avail.on{color:var(--green)} .spec-avail.limited{color:var(--amber)} .spec-avail.off{color:var(--red)}
+.spec-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle}
+.spec-dot.on{background:var(--green)} .spec-dot.limited{background:var(--amber)} .spec-dot.off{background:var(--red)}
+.spec-staff{font-size:10px;color:var(--muted);margin-top:3px}
+
+/* ══════════ LIVE ACTIVITY FEED ══════════ */
+.feed-list{display:flex;flex-direction:column;max-height:320px;overflow-y:auto;padding:10px 18px}
+.feed-item{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);align-items:flex-start}
+.feed-item:last-child{border-bottom:none}
+.feed-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.feed-dot.red{background:var(--red)} .feed-dot.green{background:var(--green)}
+.feed-dot.amber{background:var(--amber)} .feed-dot.blue{background:var(--blue)}
+.feed-dot.purple{background:var(--purple)} .feed-dot.muted{background:var(--muted)}
+.feed-text{flex:1;font-size:12px;color:var(--text2);line-height:1.4}
+.feed-text strong{color:var(--text);font-weight:600}
+.feed-time{font-family:var(--font-mono);font-size:10px;color:var(--muted);flex-shrink:0;margin-top:2px}
+
+/* ══════════ NURSE STATION STATUS ══════════ */
+.nurse-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 18px}
+.nurse-card{border-radius:var(--r-md);border:1px solid var(--border);background:var(--surface2);padding:12px 14px}
+.nc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.nc-name{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.nc-load{font-family:var(--font-mono);font-size:11px;font-weight:600}
+.nc-load.ok{color:var(--green)} .nc-load.busy{color:var(--amber)} .nc-load.overload{color:var(--red)}
+.nc-bar-bg{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:8px}
+.nc-bar{height:100%;border-radius:2px}
+.nc-bar.ok{background:var(--green)} .nc-bar.busy{background:var(--amber)} .nc-bar.overload{background:var(--red)}
+.nc-info{font-size:11px;color:var(--muted)}
+.nc-info strong{color:var(--text2)}
+
+/* ══════════ TOAST ══════════ */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--text);color:white;border-radius:var(--r-md);padding:12px 18px;font-size:13px;font-weight:500;z-index:999;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;max-width:300px;box-shadow:var(--sh-lg)}
+.toast.show{opacity:1;transform:translateY(0)}
+
+/* ══════════ RESPONSIVE ══════════ */
+@media(max-width:1100px){.stats-row{grid-template-columns:repeat(3,1fr)}.three-col{grid-template-columns:1fr 1fr}}
+@media(max-width:768px){.shell{grid-template-columns:1fr}.sidebar{display:none}.stats-row{grid-template-columns:1fr 1fr}.two-col,.three-col{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<div class="auth-overlay" id="hospitalAuthOverlay">
+  <div class="auth-card">
+    <div class="auth-title">Hospital Login</div>
+    <div class="auth-sub">Each hospital can log in with its own ID and update ICU and bed availability.</div>
+    <form id="hospitalLoginForm" class="auth-grid">
+      <div class="auth-field">
+        <label class="auth-label" for="hospitalLoginId">Hospital Login ID</label>
+        <input class="auth-input" id="hospitalLoginId" type="text" placeholder="hosp0001" autocomplete="username" required>
+      </div>
+      <div class="auth-field">
+        <label class="auth-label" for="hospitalPassword">Password</label>
+        <input class="auth-input" id="hospitalPassword" type="password" value="Hosp@123" placeholder="Enter password" autocomplete="current-password" required>
+      </div>
+      <div class="auth-actions">
+        <button type="submit" class="auth-btn" id="hospitalLoginBtn">Login</button>
+        <span class="auth-note">Default bootstrap password: Hosp@123</span>
+      </div>
+      <div class="auth-error" id="hospitalLoginError"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════ TOP BAR ══════════ -->
+<header class="topbar">
+  <div class="tb-left">
+    <div class="tb-logo">
+      <div class="logo-c">C</div>
+      <div class="logo-text">
+        <span class="logo-name">JEEVANCONNECT</span>
+        <span class="logo-sub">Hospital Network</span>
+      </div>
+    </div>
+    <div class="tb-divider"></div>
+    <div class="tb-hospital">
+      <div class="tb-hosp-name" id="hospitalNameHeader">Civil Hospital, Mumbai</div>
+      <div class="tb-hosp-id" id="hospitalMeta">HID: MH--0047 · Zone B Emergency Wing</div>
+    </div>
+  </div>
+  <div class="tb-right">
+    <div class="status-chip online" id="networkStatusChip"><span class="status-dot"></span>Network Live</div>
+    <div class="tb-time" id="liveClock">--:--:--</div>
+    <button class="tb-logout-btn" onclick="logoutHospitalSession()">Logout</button>
+    <button class="tb-alert-btn" onclick="showToast('🚨 Mass Casualty Protocol activated!')">🚨 MCI ALERT</button>
+    <div class="tb-avatar">👨‍⚕️</div>
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- ══════════ SIDEBAR ══════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-section-label">Overview</div>
+    <button class="nav-item active"><span class="nav-icon">🏥</span>Command Centre<span class="nav-badge red" id="navBadgeCommand">3</span></button>
+    <button class="nav-item" onclick="showToast('Navigating to Bed Management...')"><span class="nav-icon">🛏️</span>Bed Management<span class="nav-badge amber">4</span></button>
+    <button class="nav-item" onclick="showToast('Navigating to Incoming Alerts...')"><span class="nav-icon">🚑</span>Ambulance Alerts<span class="nav-badge red" id="navBadgeAmbAlerts">2</span></button>
+    <button class="nav-item" onclick="showToast('Navigating to Pre-Arrival...')"><span class="nav-icon">📋</span>Pre-Arrival Info</button>
+
+    <div class="sidebar-section-label">Management</div>
+    <button class="nav-item" onclick="showToast('Navigating to Resources...')"><span class="nav-icon">🔧</span>Resource Allocation</button>
+    <button class="nav-item" onclick="showToast('Navigating to Staff...')"><span class="nav-icon">👨‍⚕️</span>Staff On-Duty<span class="nav-badge green">32</span></button>
+    <button class="nav-item" onclick="showToast('Navigating to Specialties...')"><span class="nav-icon">🩻</span>Specialty Services</button>
+    <button class="nav-item" onclick="showToast('Navigating to Pharmacy...')"><span class="nav-icon">💊</span>Pharmacy & Blood</button>
+
+    <div class="sidebar-section-label">Reports</div>
+    <button class="nav-item" onclick="showToast('Navigating to Analytics...')"><span class="nav-icon">📊</span>Analytics</button>
+    <button class="nav-item" onclick="showToast('Navigating to Logs...')"><span class="nav-icon">📜</span>Activity Log</button>
+    <button class="nav-item" onclick="showToast('Navigating to Settings...')"><span class="nav-icon">⚙️</span>Settings</button>
+
+    <div class="sidebar-bottom">
+      <div class="hosp-status-card">
+        <div class="hsc-label">Emergency Status</div>
+        <div class="hsc-level">ACTIVE</div>
+        <div class="hsc-sub">Preparedness Level: 2 of 5</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══════════ MAIN CONTENT ══════════ -->
+  <main class="main">
+
+    <!-- INCOMING CRITICAL ALERT BANNER -->
+    <div class="alert-banner">
+      <div class="ab-icon">🚨</div>
+      <div class="ab-content">
+        <div class="ab-title">CRITICAL INCOMING — Cardiac Arrest · MH-15-AB-4821</div>
+        <div class="ab-sub">Male, 58 yrs · CPR in progress · Driver: Rajesh Kumar (+91 98765 43210) · From: Nashik Central</div>
+      </div>
+      <div class="ab-actions">
+        <div class="ab-eta">ETA 4 MIN</div>
+        <button class="ab-btn primary" onclick="showToast('✓ Bay 2 prepared for cardiac arrest patient')">Prepare Bay</button>
+        <button class="ab-btn ghost" onclick="showToast('Cardiology team alerted')">Alert Cardiology</button>
+      </div>
+    </div>
+
+    <!-- STATS ROW -->
+    <div>
+      <div class="stats-row">
+        <div class="stat-card red">
+          <span class="stat-icon">🚑</span>
+          <div class="stat-val" id="stat-amb">--</div>
+          <div class="stat-label">Active Ambulances</div>
+          <div class="stat-change up" id="stat-amb-trend">+0 ↑</div>
+        </div>
+        <div class="stat-card amber">
+          <span class="stat-icon">🛏️</span>
+          <div class="stat-val" id="stat-icu">0</div>
+          <div class="stat-label">ICU Available</div>
+          <div class="stat-change neutral" id="stat-icu-trend">→ Hospital input</div>
+        </div>
+        <div class="stat-card green">
+          <span class="stat-icon">🏃</span>
+          <div class="stat-val">32</div>
+          <div class="stat-label">Staff On-Duty</div>
+          <div class="stat-change neutral">→ Normal shift</div>
+        </div>
+        <div class="stat-card blue">
+          <span class="stat-icon">⏱️</span>
+          <div class="stat-val">8.2</div>
+          <div class="stat-label">Avg Response (min)</div>
+          <div class="stat-change down">↓ 1.3 min better</div>
+        </div>
+        <div class="stat-card purple">
+          <span class="stat-icon">🏥</span>
+          <div class="stat-val" id="stat-hospitals">--</div>
+          <div class="stat-label">Hospitals (DB)</div>
+          <div class="stat-change neutral" id="stat-hospitals-trend">→ Live sync</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW: INCOMING AMBULANCES + PRE-ARRIVAL INFO -->
+    <div class="two-col">
+
+      <!-- INCOMING AMBULANCE ALERTS -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-left">
+            <div class="card-icon red">🚑</div>
+            <div>
+              <div class="card-title">Incoming Ambulances</div>
+              <div class="card-sub" id="incomingAmbSub">Real-time ETA & patient status</div>
+            </div>
+          </div>
+          <button class="section-action" onclick="loadLiveDashboardData(true)">⟳ Refresh</button>
+        </div>
+        <div class="card-body" style="padding:14px 18px">
+          <div class="amb-list">
+
+            <!-- AMB 1 — CRITICAL -->
+            <div class="amb-card critical">
+              <div class="amb-progress"><div class="amb-progress-fill critical" style="width:80%"></div></div>
+              <div class="amb-top">
+                <div class="amb-siren">🚑</div>
+                <div class="amb-info">
+                  <div class="amb-id">MH-15-AB-4821 · Bay 2</div>
+                  <div class="amb-patient">Ravi Mehta, 58M</div>
+                  <div class="amb-type">🫀 Cardiac Arrest · CPR Active</div>
+                </div>
+                <div class="amb-eta-wrap">
+                  <div class="amb-eta-val critical" id="eta1">4</div>
+                  <div class="amb-eta-label">min ETA</div>
+                </div>
+              </div>
+              <div class="amb-bottom">
+                <div class="amb-chip">BP<span id="bp1">72/48</span></div>
+                <div class="amb-chip">SpO₂<span id="spo1">84%</span></div>
+                <div class="amb-chip">HR<span id="hr1">38 bpm</span></div>
+                <div class="amb-chip">Temp<span>36.2°C</span></div>
+              </div>
+            </div>
+
+            <!-- AMB 2 — HIGH -->
+            <div class="amb-card high">
+              <div class="amb-progress"><div class="amb-progress-fill high" style="width:50%"></div></div>
+              <div class="amb-top">
+                <div class="amb-siren">🚑</div>
+                <div class="amb-info">
+                  <div class="amb-id">MH-22-GH-1183 · Bay 4</div>
+                  <div class="amb-patient">Sunita Patil, 34F</div>
+                  <div class="amb-type">🚗 Road Accident · Trauma</div>
+                </div>
+                <div class="amb-eta-wrap">
+                  <div class="amb-eta-val high">9</div>
+                  <div class="amb-eta-label">min ETA</div>
+                </div>
+              </div>
+              <div class="amb-bottom">
+                <div class="amb-chip">BP<span>98/60</span></div>
+                <div class="amb-chip">SpO₂<span>94%</span></div>
+                <div class="amb-chip">HR<span>112 bpm</span></div>
+                <div class="amb-chip">GCS<span>11/15</span></div>
+              </div>
+            </div>
+
+            <!-- AMB 3 — MEDIUM -->
+            <div class="amb-card medium">
+              <div class="amb-progress"><div class="amb-progress-fill medium" style="width:25%"></div></div>
+              <div class="amb-top">
+                <div class="amb-siren">🚐</div>
+                <div class="amb-info">
+                  <div class="amb-id">MH-07-PQ-9934 · Bay 1</div>
+                  <div class="amb-patient">Anil Kumar, 45M</div>
+                  <div class="amb-type">🧠 Suspected Stroke · FAST +ve</div>
+                </div>
+                <div class="amb-eta-wrap">
+                  <div class="amb-eta-val medium">17</div>
+                  <div class="amb-eta-label">min ETA</div>
+                </div>
+              </div>
+              <div class="amb-bottom">
+                <div class="amb-chip">BP<span>188/110</span></div>
+                <div class="amb-chip">SpO₂<span>97%</span></div>
+                <div class="amb-chip">HR<span>90 bpm</span></div>
+                <div class="amb-chip">GCS<span>14/15</span></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- PRE-ARRIVAL PATIENT INFO -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-left">
+            <div class="card-icon amber">📋</div>
+            <div>
+              <div class="card-title">Pre-Arrival Patient Info</div>
+              <div class="card-sub">Medical history & preparation notes</div>
+            </div>
+          </div>
+          <button class="section-action" onclick="showToast('Opening full patient records...')">View All</button>
+        </div>
+        <div class="patient-list">
+
+          <div class="patient-card critical">
+            <div class="pt-avatar critical">👴</div>
+            <div class="pt-info">
+              <div class="pt-name">Ravi Mehta — 58M</div>
+              <div class="pt-detail">B+ · Hypertension · 2 Stents (2021)</div>
+              <div class="pt-condition">🫀 Cardiac Arrest — CPR Active</div>
+              <div class="pt-vitals">
+                <span class="pt-vital crit">BP 72/48</span>
+                <span class="pt-vital crit">SpO₂ 84%</span>
+                <span class="pt-vital crit">HR 38</span>
+              </div>
+              <div>
+                <span class="pt-allergy-tag">⚠️ Heparin</span>
+                <span class="pt-allergy-tag">⚠️ Aspirin</span>
+              </div>
+            </div>
+            <div class="pt-right">
+              <span class="pt-eta">4 min</span>
+              <span class="pt-eta-l">ETA</span>
+              <span class="pt-sev-badge critical">Critical</span>
+            </div>
+          </div>
+
+          <div class="patient-card high">
+            <div class="pt-avatar high">👩</div>
+            <div class="pt-info">
+              <div class="pt-name">Sunita Patil — 34F</div>
+              <div class="pt-detail">O- · No known allergies · Pregnant (32w)</div>
+              <div class="pt-condition">🚗 Polytrauma — Road Accident</div>
+              <div class="pt-vitals">
+                <span class="pt-vital warn">BP 98/60</span>
+                <span class="pt-vital warn">HR 112</span>
+                <span class="pt-vital">SpO₂ 94%</span>
+              </div>
+            </div>
+            <div class="pt-right">
+              <span class="pt-eta">9 min</span>
+              <span class="pt-eta-l">ETA</span>
+              <span class="pt-sev-badge high">High</span>
+            </div>
+          </div>
+
+          <div class="patient-card medium">
+            <div class="pt-avatar medium">👨</div>
+            <div class="pt-info">
+              <div class="pt-name">Anil Kumar — 45M</div>
+              <div class="pt-detail">AB+ · Diabetic · Hypertensive</div>
+              <div class="pt-condition">🧠 Suspected Ischaemic Stroke</div>
+              <div class="pt-vitals">
+                <span class="pt-vital warn">BP 188/110</span>
+                <span class="pt-vital">SpO₂ 97%</span>
+                <span class="pt-vital">HR 90</span>
+              </div>
+              <div>
+                <span class="pt-allergy-tag">⚠️ Penicillin</span>
+              </div>
+            </div>
+            <div class="pt-right">
+              <span class="pt-eta">17 min</span>
+              <span class="pt-eta-l">ETA</span>
+              <span class="pt-sev-badge medium">Medium</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW: BED MANAGEMENT + RESOURCE ALLOCATION -->
+    <div class="two-col">
+
+      <!-- BED MANAGEMENT -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-left">
+            <div class="card-icon blue">🛏️</div>
+            <div>
+              <div class="card-title">Bed Availability</div>
+              <div class="card-sub">ICU / ER / General — real-time</div>
+            </div>
+          </div>
+          <button class="section-action" onclick="showToast('Opening full bed management view...')">Manage</button>
+        </div>
+        <div class="bed-tabs">
+          <div class="bed-tab active" id="bedTabIcu" onclick="switchBedTab(this,'icu')">ICU — 0 free</div>
+          <div class="bed-tab" id="bedTabEr" onclick="switchBedTab(this,'er')">ER — 0 free</div>
+          <div class="bed-tab" id="bedTabGeneral" onclick="switchBedTab(this,'general')">General — 0 free</div>
+          <div class="bed-tab" onclick="switchBedTab(this,'nicu')">NICU — 3 free</div>
+        </div>
+        <div class="bed-grid-wrap" id="bedDisplay">
+          <div class="ward-row">
+            <div class="ward-header">
+              <div class="ward-name">ICU Wing A</div>
+              <div class="ward-count good">8 / 12 free</div>
+            </div>
+            <div class="bed-visual" id="icuWingA"></div>
+          </div>
+          <div class="ward-row">
+            <div class="ward-header">
+              <div class="ward-name">ICU Wing B (Cardiac)</div>
+              <div class="ward-count warn">4 / 10 free</div>
+            </div>
+            <div class="bed-visual" id="icuWingB"></div>
+          </div>
+          <div class="ward-row">
+            <div class="ward-header">
+              <div class="ward-name">ICU Wing C (Neuro)</div>
+              <div class="ward-count warn">2 / 8 free</div>
+            </div>
+            <div class="bed-visual" id="icuWingC"></div>
+          </div>
+        </div>
+        <div class="bed-legend">
+          <div class="bed-leg-item"><div class="bed-leg-dot available"></div>Available</div>
+          <div class="bed-leg-item"><div class="bed-leg-dot occupied"></div>Occupied</div>
+          <div class="bed-leg-item"><div class="bed-leg-dot reserved"></div>Reserved</div>
+          <div class="bed-leg-item"><div class="bed-leg-dot incoming"></div>Incoming</div>
+          <div class="bed-leg-item"><div class="bed-leg-dot maintenance"></div>Maintenance</div>
+        </div>
+        <div class="bed-update-wrap">
+          <div class="bed-update-head">
+            <div class="bed-update-title">Update Hospital Bed Availability</div>
+          </div>
+          <div class="bed-update-grid">
+            <div class="bed-update-field">
+              <label for="inputIcuBeds">ICU Beds</label>
+              <input id="inputIcuBeds" type="number" min="0" value="0">
+            </div>
+            <div class="bed-update-field">
+              <label for="inputGeneralBeds">General Beds</label>
+              <input id="inputGeneralBeds" type="number" min="0" value="0">
+            </div>
+            <div class="bed-update-field">
+              <label for="inputLowBeds">Low Beds</label>
+              <input id="inputLowBeds" type="number" min="0" value="0">
+            </div>
+            <div class="bed-update-field">
+              <label for="inputTotalBeds">Total Beds</label>
+              <input id="inputTotalBeds" type="number" min="0" value="0">
+            </div>
+          </div>
+          <div class="bed-update-actions">
+            <button class="bed-save-btn" id="saveBedsBtn" onclick="saveHospitalBedUpdate()">Save Beds</button>
+            <span class="bed-update-msg" id="bedUpdateMsg">Login required</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- RESOURCE ALLOCATION -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-left">
+            <div class="card-icon purple">🔧</div>
+            <div>
+              <div class="card-title">Resource Allocation</div>
+              <div class="card-sub">Equipment, staff & supplies</div>
+            </div>
+          </div>
+          <button class="section-action" onclick="showToast('Opening resource request form...')">Request</button>
+        </div>
+        <div class="resource-grid">
+          <div class="resource-item" onclick="showToast('Managing ventilators...')">
+            <div class="ri-top"><div class="ri-name"><span class="ri-icon">🫁</span>Ventilators</div><div class="ri-count">6 <span>/ 18 total</span></div></div>
+            <div class="ri-bar-bg"><div class="ri-bar amber" style="width:67%"></div></div>
+            <div class="ri-footer"><span>12 in use</span><span>67% utilized</span></div>
+          </div>
+          <div class="resource-item" onclick="showToast('Managing defibrillators...')">
+            <div class="ri-top"><div class="ri-name"><span class="ri-icon">⚡</span>Defibrillators</div><div class="ri-count">4 <span>/ 8 total</span></div></div>
+            <div class="ri-bar-bg"><div class="ri-bar green" style="width:50%"></div></div>
+            <div class="ri-footer"><span>4 available</span><span>50% utilized</span></div>
+          </div>
+          <div class="resource-item" onclick="showToast('Managing operating theatres...')">
+            <div class="ri-top"><div class="ri-name"><span class="ri-icon">🏥</span>OT Rooms</div><div class="ri-count">1 <span>/ 6 total</span></div></div>
+            <div class="ri-bar-bg"><div class="ri-bar red" style="width:83%"></div></div>
+            <div class="ri-footer"><span>5 occupied</span><span>83% utilized</span></div>
+          </div>
+          <div class="resource-item" onclick="showToast('Managing ECG machines...')">
+            <div class="ri-top"><div class="ri-name"><span class="ri-icon">🫀</span>ECG Machines</div><div class="ri-count">8 <span>/ 10 total</span></div></div>
+            <div class="ri-bar-bg"><div class="ri-bar green" style="width:20%"></div></div>
+            <div class="ri-footer"><span>2 in use</span><span>20% utilized</span></div>
+          </div>
+          <div class="resource-item" onclick="showToast('Managing CT scanners...')">
+            <div class="ri-top"><div class="ri-name"><span class="ri-icon">🔬</span>CT Scanner</div><div class="ri-count">1 <span>/ 2 total</span></div></div>
+            <div class="ri-bar-bg"><div class="ri-bar amber" style="width:50%"></div></div>
+            <div class="ri-footer"><span>1 queued</span><span>50% utilized</span></div>
+          </div>
+          <div class="resource-item" onclick="showToast('Managing ambulance bays...')">
+            <div class="ri-top"><div class="ri-name"><span class="ri-icon">🚑</span>Amb. Bays</div><div class="ri-count">2 <span>/ 6 total</span></div></div>
+            <div class="ri-bar-bg"><div class="ri-bar green" style="width:33%"></div></div>
+            <div class="ri-footer"><span>4 free</span><span>33% utilized</span></div>
+          </div>
+          <div class="resource-item" onclick="showToast('Managing O- blood...')">
+            <div class="ri-top"><div class="ri-name"><span class="ri-icon">🩸</span>Blood O-</div><div class="ri-count">6 <span>units</span></div></div>
+            <div class="ri-bar-bg"><div class="ri-bar amber" style="width:40%"></div></div>
+            <div class="ri-footer"><span>Critical type</span><span>40% of target</span></div>
+          </div>
+          <div class="resource-item" onclick="showToast('Managing crash carts...')">
+            <div class="ri-top"><div class="ri-name"><span class="ri-icon">💊</span>Crash Carts</div><div class="ri-count">5 <span>/ 6 total</span></div></div>
+            <div class="ri-bar-bg"><div class="ri-bar green" style="width:83%"></div></div>
+            <div class="ri-footer"><span>All stocked</span><span>Ready</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const API_BASE_URL = window.__API_BASE_URL__ || (() => {
+  try {
+    return localStorage.getItem('apiBaseUrl') || 'http://localhost:5000';
+  } catch (_) {
+    return 'http://localhost:5000';
+  }
+})();
+const HOSPITAL_TOKEN_KEY = 'hospital.auth.token.v1';
+const HOSPITAL_PROFILE_KEY = 'hospital.auth.profile.v1';
+
+let hospitalAuthToken = '';
+let activeHospitalProfile = null;
+
+/* ── Live Clock ── */
+function updateClock(){
+  const n=new Date();
+  document.getElementById('liveClock').textContent=
+    n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+}
+updateClock(); setInterval(updateClock,1000);
+
+/* ── Toast ── */
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer=setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+function setAuthOverlayVisible(visible) {
+  const overlay = document.getElementById('hospitalAuthOverlay');
+  if (!overlay) return;
+  overlay.classList.toggle('hidden', !visible);
+}
+
+function setHospitalAuthError(message) {
+  const el = document.getElementById('hospitalLoginError');
+  if (el) el.textContent = message || '';
+}
+
+function getNumberInputValue(id) {
+  const el = document.getElementById(id);
+  const val = Number(el?.value || 0);
+  if (!Number.isFinite(val) || val < 0) return 0;
+  return Math.round(val);
+}
+
+function setNumberInputValue(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = String(Math.max(0, Number(value) || 0));
+}
+
+function setBedUpdateMessage(message, isError = false) {
+  const msgEl = document.getElementById('bedUpdateMsg');
+  if (!msgEl) return;
+  msgEl.textContent = message;
+  msgEl.style.color = isError ? 'var(--red)' : 'var(--muted)';
+}
+
+function setSaveBedsEnabled(enabled) {
+  const btn = document.getElementById('saveBedsBtn');
+  if (btn) btn.disabled = !enabled;
+}
+
+function setNetworkStatus(isOnline) {
+  const chip = document.getElementById('networkStatusChip');
+  if (!chip) return;
+  chip.classList.toggle('online', Boolean(isOnline));
+  chip.innerHTML = `<span class="status-dot"></span>${isOnline ? 'Network Live' : 'Offline Mode'}`;
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = String(value);
+}
+
+async function fetchJson(url) {
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
+async function authFetchJson(path, options = {}) {
+  const headers = {
+    ...(options.headers || {}),
+    Authorization: `Bearer ${hospitalAuthToken}`
+  };
+
+  if (options.body && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: options.method || 'GET',
+    cache: 'no-store',
+    headers,
+    body: options.body
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.success === false) {
+    throw new Error(data.message || `HTTP ${response.status}`);
+  }
+
+  return data;
+}
+
+function renderHospitalIdentity(hospital, hospitalCount = null, ambulanceCount = null) {
+  const nameEl = document.getElementById('hospitalNameHeader');
+  const metaEl = document.getElementById('hospitalMeta');
+
+  if (nameEl) {
+    nameEl.textContent = hospital?.name || 'Civil Hospital, Mumbai';
+  }
+
+  if (metaEl) {
+    if (hospital) {
+      const no = hospital.hospitalNo ? `HID: MH-${String(hospital.hospitalNo).padStart(4, '0')}` : 'HID: MH-UNASSIGNED';
+      const city = hospital.location?.city || 'Mumbai';
+      const ambText = ambulanceCount === null ? '' : ` · ${ambulanceCount} Ambulances`;
+      const hospText = hospitalCount === null ? '' : ` · ${hospitalCount} Hospitals`;
+      metaEl.textContent = `${no} · ${city}${hospText}${ambText}`;
+    } else {
+      metaEl.textContent = 'HID: MH--0047 · Zone B Emergency Wing';
+    }
+  }
+}
+
+function applyHospitalFacilityData(facilities = {}) {
+  const icuBeds = Number(facilities.icuBeds || 0);
+  const generalBeds = Number(facilities.generalBeds || 0);
+  const lowBeds = Number(facilities.lowBeds || 0);
+  const totalBeds = Number(facilities.totalBeds || Math.max(icuBeds + generalBeds + lowBeds, 0));
+
+  setText('stat-icu', icuBeds);
+  setText('bedTabIcu', `ICU — ${icuBeds} free`);
+  setText('bedTabGeneral', `General — ${generalBeds} free`);
+  setText('bedTabEr', `ER — ${lowBeds} free`);
+
+  const trendEl = document.getElementById('stat-icu-trend');
+  if (trendEl) {
+    trendEl.textContent = `Total ${totalBeds} beds`;
+    trendEl.className = 'stat-change neutral';
+  }
+
+  setNumberInputValue('inputIcuBeds', icuBeds);
+  setNumberInputValue('inputGeneralBeds', generalBeds);
+  setNumberInputValue('inputLowBeds', lowBeds);
+  setNumberInputValue('inputTotalBeds', totalBeds);
+}
+
+function storeHospitalSession(hospital, token) {
+  if (token) {
+    hospitalAuthToken = token;
+    localStorage.setItem(HOSPITAL_TOKEN_KEY, token);
+  }
+  if (hospital) {
+    activeHospitalProfile = hospital;
+    localStorage.setItem(HOSPITAL_PROFILE_KEY, JSON.stringify(hospital));
+    renderHospitalIdentity(hospital);
+    applyHospitalFacilityData(hospital.facilities || {});
+  }
+}
+
+function clearHospitalSession() {
+  hospitalAuthToken = '';
+  activeHospitalProfile = null;
+  localStorage.removeItem(HOSPITAL_TOKEN_KEY);
+  localStorage.removeItem(HOSPITAL_PROFILE_KEY);
+  const loginIdInput = document.getElementById('hospitalLoginId');
+  const passwordInput = document.getElementById('hospitalPassword');
+  if (loginIdInput) loginIdInput.value = '';
+  if (passwordInput) passwordInput.value = 'Hosp@123';
+  setSaveBedsEnabled(false);
+  setBedUpdateMessage('Login required', false);
+}
+
+function logoutHospitalSession() {
+  clearHospitalSession();
+  setHospitalAuthError('');
+  setAuthOverlayVisible(true);
+  showToast('Logged out successfully');
+}
+
+async function restoreHospitalSession() {
+  hospitalAuthToken = localStorage.getItem(HOSPITAL_TOKEN_KEY) || '';
+  const cached = localStorage.getItem(HOSPITAL_PROFILE_KEY);
+  if (cached) {
+    try {
+      activeHospitalProfile = JSON.parse(cached);
+      renderHospitalIdentity(activeHospitalProfile);
+      applyHospitalFacilityData(activeHospitalProfile?.facilities || {});
+    } catch (_) {
+      activeHospitalProfile = null;
+    }
+  }
+
+  if (!hospitalAuthToken) {
+    setAuthOverlayVisible(true);
+    setSaveBedsEnabled(false);
+    return;
+  }
+
+  try {
+    const me = await authFetchJson('/api/hospital/me');
+    storeHospitalSession(me.hospital, hospitalAuthToken);
+    setAuthOverlayVisible(false);
+    setSaveBedsEnabled(true);
+    setBedUpdateMessage('Hospital session active', false);
+  } catch (error) {
+    clearHospitalSession();
+    setAuthOverlayVisible(true);
+    setHospitalAuthError('Session expired. Please login again.');
+  }
+}
+
+async function handleHospitalLogin(event) {
+  event.preventDefault();
+  setHospitalAuthError('');
+
+  const loginBtn = document.getElementById('hospitalLoginBtn');
+  if (loginBtn) loginBtn.disabled = true;
+
+  const loginId = String(document.getElementById('hospitalLoginId')?.value || '').trim();
+  const password = String(document.getElementById('hospitalPassword')?.value || '');
+
+  try {
+    const result = await fetch(`${API_BASE_URL}/api/hospital/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ loginId, password })
+    }).then(async (response) => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || `HTTP ${response.status}`);
+      }
+      return data;
+    });
+
+    storeHospitalSession(result.hospital, result.token);
+    setAuthOverlayVisible(false);
+    setSaveBedsEnabled(true);
+    setBedUpdateMessage('Logged in. You can update bed availability.', false);
+    showToast(`✅ Logged in: ${result.hospital?.name || 'Hospital'}`);
+    loadLiveDashboardData(false);
+  } catch (error) {
+    setHospitalAuthError(error.message || 'Login failed');
+    setSaveBedsEnabled(false);
+  } finally {
+    if (loginBtn) loginBtn.disabled = false;
+  }
+}
+
+async function saveHospitalBedUpdate() {
+  if (!hospitalAuthToken) {
+    setBedUpdateMessage('Please login first', true);
+    setAuthOverlayVisible(true);
+    return;
+  }
+
+  const saveBtn = document.getElementById('saveBedsBtn');
+  if (saveBtn) saveBtn.disabled = true;
+  setBedUpdateMessage('Saving...', false);
+
+  const payload = {
+    icuBeds: getNumberInputValue('inputIcuBeds'),
+    generalBeds: getNumberInputValue('inputGeneralBeds'),
+    lowBeds: getNumberInputValue('inputLowBeds'),
+    totalBeds: getNumberInputValue('inputTotalBeds')
+  };
+
+  try {
+    const result = await authFetchJson('/api/hospital/me/facilities', {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+
+    applyHospitalFacilityData(result.facilities || payload);
+    if (activeHospitalProfile) {
+      activeHospitalProfile = { ...activeHospitalProfile, facilities: result.facilities || payload };
+      localStorage.setItem(HOSPITAL_PROFILE_KEY, JSON.stringify(activeHospitalProfile));
+    }
+
+    setBedUpdateMessage('Beds updated successfully', false);
+    showToast('✅ ICU and bed availability updated');
+  } catch (error) {
+    setBedUpdateMessage(error.message || 'Failed to update beds', true);
+    if (/token|expired|invalid/i.test(String(error.message || ''))) {
+      clearHospitalSession();
+      setAuthOverlayVisible(true);
+    }
+  } finally {
+    if (saveBtn) saveBtn.disabled = !Boolean(hospitalAuthToken);
+  }
+}
+
+function applyLiveCounts(ambulanceCount, hospitalCount, activeAlertCount) {
+  setText('stat-amb', ambulanceCount);
+  setText('stat-hospitals', hospitalCount);
+  setText('navBadgeAmbAlerts', activeAlertCount);
+  setText('navBadgeCommand', activeAlertCount);
+
+  const ambTrend = document.getElementById('stat-amb-trend');
+  if (ambTrend) {
+    const delta = ambulanceCount - 20;
+    const direction = delta >= 0 ? '↑' : '↓';
+    const prefix = delta >= 0 ? '+' : '';
+    ambTrend.textContent = `${prefix}${delta} ${direction}`;
+    ambTrend.className = `stat-change ${delta >= 0 ? 'up' : 'down'}`;
+  }
+
+  const hospTrend = document.getElementById('stat-hospitals-trend');
+  if (hospTrend) {
+    hospTrend.textContent = `${hospitalCount} from DB`;
+  }
+
+  const sub = document.getElementById('incomingAmbSub');
+  if (sub) {
+    sub.textContent = `Live DB sync · ${activeAlertCount} active alerts`;
+  }
+
+  renderHospitalIdentity(activeHospitalProfile, hospitalCount, ambulanceCount);
+}
+
+async function loadLiveDashboardData(showSuccessToast = false) {
+  try {
+    const [driversResp, hospitalsResp, assignmentsResp, hospitalMeResp] = await Promise.all([
+      fetchJson(`${API_BASE_URL}/api/drivers`),
+      fetchJson(`${API_BASE_URL}/api/hospitals/all`),
+      fetchJson(`${API_BASE_URL}/api/admin/ambulance-assignments?limit=100`),
+      hospitalAuthToken
+        ? authFetchJson('/api/hospital/me').catch(() => null)
+        : Promise.resolve(null)
+    ]);
+
+    const drivers = Array.isArray(driversResp?.drivers) ? driversResp.drivers : [];
+    const hospitals = Array.isArray(hospitalsResp?.hospitals) ? hospitalsResp.hospitals : [];
+    const assignments = Array.isArray(assignmentsResp?.assignments) ? assignmentsResp.assignments : [];
+
+    const activeAlertCount = assignments.filter((item) => {
+      const status = String(item?.status || '').toLowerCase();
+      return ['pending', 'assigned', 'enroute', 'arrived', 'hospital_assigned'].includes(status);
+    }).length;
+
+    applyLiveCounts(drivers.length, hospitals.length, activeAlertCount);
+    if (hospitalMeResp?.hospital) {
+      storeHospitalSession(hospitalMeResp.hospital);
+      applyHospitalFacilityData(hospitalMeResp.hospital.facilities || {});
+    }
+    setNetworkStatus(true);
+
+    if (showSuccessToast) {
+      showToast(`✅ Synced: ${drivers.length} ambulances, ${hospitals.length} hospitals`);
+    }
+  } catch (error) {
+    setNetworkStatus(false);
+    if (showSuccessToast) {
+      showToast('⚠️ Backend not reachable. Showing cached demo values.');
+    }
+    console.error('Live dashboard sync failed:', error.message || error);
+  }
+}
+
+/* ── Bed grid generator ── */
+function makeBeds(containerId, total, occupied, reserved, maintenance, incoming){
+  const c=document.getElementById(containerId); if(!c)return;
+  c.innerHTML='';
+  for(let i=0;i<total;i++){
+    const sq=document.createElement('div'); sq.className='bed-sq';
+    const n=i+1;
+    let cls='available', title='Bed '+n+' — Available';
+    if(i<occupied){cls='occupied';title='Bed '+n+' — Occupied';}
+    else if(i<occupied+incoming){cls='incoming';title='Bed '+n+' — Incoming patient';}
+    else if(i<occupied+incoming+reserved){cls='reserved';title='Bed '+n+' — Reserved';}
+    else if(i>=total-maintenance){cls='maintenance';title='Bed '+n+' — Maintenance';}
+    sq.classList.add(cls); sq.title=title;
+    sq.addEventListener('click',()=>showToast('🛏️ '+title));
+    c.appendChild(sq);
+  }
+}
+makeBeds('icuWingA',12,4,0,0,1);
+makeBeds('icuWingB',10,6,1,0,1);
+makeBeds('icuWingC',8,6,0,1,1);
+
+/* ── Bed tab switcher ── */
+function switchBedTab(btn,tab){
+  document.querySelectorAll('.bed-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const configs={
+    icu:   [{id:'icuWingA',total:12,occ:4,res:0,maint:0,inc:1,name:'ICU Wing A',lbl:'8 / 12 free',cls:'good'},
+            {id:'icuWingB',total:10,occ:6,res:1,maint:0,inc:1,name:'ICU Wing B (Cardiac)',lbl:'4 / 10 free',cls:'warn'},
+            {id:'icuWingC',total:8,occ:6,res:0,maint:1,inc:1,name:'ICU Wing C (Neuro)',lbl:'2 / 8 free',cls:'warn'}],
+    er:    [{id:'icuWingA',total:10,occ:3,res:0,maint:1,inc:0,name:'ER Bay Row A',lbl:'6 / 10 free',cls:'good'},
+            {id:'icuWingB',total:8,occ:5,res:0,maint:0,inc:2,name:'ER Bay Row B',lbl:'3 / 8 free',cls:'warn'},
+            {id:'icuWingC',total:6,occ:6,res:0,maint:0,inc:0,name:'Resus Bay',lbl:'0 / 6 free',cls:'crit'}],
+    general:[{id:'icuWingA',total:16,occ:6,res:2,maint:0,inc:0,name:'General Ward A',lbl:'10 / 16 free',cls:'good'},
+             {id:'icuWingB',total:16,occ:8,res:0,maint:2,inc:0,name:'General Ward B',lbl:'8 / 16 free',cls:'warn'},
+             {id:'icuWingC',total:12,occ:2,res:0,maint:0,inc:0,name:'Recovery Ward',lbl:'10 / 12 free',cls:'good'}],
+    nicu:  [{id:'icuWingA',total:6,occ:3,res:0,maint:0,inc:0,name:'NICU Unit A',lbl:'3 / 6 free',cls:'warn'},
+            {id:'icuWingB',total:4,occ:4,res:0,maint:0,inc:1,name:'NICU Unit B',lbl:'0 / 4 full',cls:'crit'}]
+  };
+  const wards=configs[tab]||configs.icu;
+  const wrap=document.getElementById('bedDisplay');
+  wrap.innerHTML='';
+  wards.forEach(w=>{
+    const row=document.createElement('div'); row.className='ward-row';
+    row.innerHTML=`<div class="ward-header"><div class="ward-name">${w.name}</div><div class="ward-count ${w.cls}">${w.lbl}</div></div><div class="bed-visual" id="${w.id}"></div>`;
+    wrap.appendChild(row);
+    makeBeds(w.id,w.total,w.occ,w.res,w.maint,w.inc);
+  });
+}
+
+/* ── Live ETA countdown ── */
+let eta1=4;
+setInterval(()=>{
+  if(eta1>0){
+    const el=document.getElementById('eta1');
+    if(el) el.textContent=eta1;
+    // don't decrement in demo — just flicker for effect
+  }
+},8000);
+
+/* ── Simulate live vitals update ── */
+const bpVals=['72/48','74/50','70/45','76/52'];
+const spo2Vals=['84%','82%','86%','83%'];
+const hrVals=['38 bpm','36 bpm','40 bpm','38 bpm'];
+let vIdx=0;
+setInterval(()=>{
+  vIdx=(vIdx+1)%bpVals.length;
+  const bp=document.getElementById('bp1');
+  const spo=document.getElementById('spo1');
+  const hr=document.getElementById('hr1');
+  if(bp) bp.textContent=bpVals[vIdx];
+  if(spo) spo.textContent=spo2Vals[vIdx];
+  if(hr) hr.textContent=hrVals[vIdx];
+},4000);
+
+document.getElementById('hospitalLoginForm')?.addEventListener('submit', handleHospitalLogin);
+
+restoreHospitalSession().finally(() => {
+  loadLiveDashboardData(false);
+  setInterval(() => loadLiveDashboardData(false), 30000);
+});
+</script>
+</body>
+</html>

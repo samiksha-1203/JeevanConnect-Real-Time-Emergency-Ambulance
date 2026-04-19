@@ -1,245 +1,226 @@
 # Jeevan Connect
 
-Jeevan Connect is a real-time emergency ambulance dispatch system with a citizen flow, driver flow, live dispatch coordination, and Google Maps routing.
+Jeevan Connect is a real-time emergency response platform that connects citizens, ambulance drivers, hospitals, and dispatch/admin operations.
 
-## What the project does
+It includes:
+- OTP-based citizen authentication
+- Real-time SOS creation and dispatch assignment
+- Nearest-driver matching using live locations
+- Hospital discovery (Google Places, OSM, and local fallback)
+- Hospital-specific login and bed-capacity updates
+- Live Socket.IO mission lifecycle updates
 
-The app lets a citizen register or log in with OTP, submit an emergency SOS, and get assigned to an available ambulance driver. The driver can log in with a dummy test account or a real backend account, accept the mission, and see the route to the patient on Google Maps.
+## Repository Structure
 
-## Main parts of the system
+- frontend
+  - index.html
+  - citizen-dashboard.html
+  - ambulance-driver-dashboard.html
+  - hospital-dashboard.html
+  - admin-dashboard.html
+- backend
+  - server.js
+  - package.json
+  - scripts
+    - build-mumbai-hospitals-stationwise.js
+    - import-hospitals-to-mongodb.js
 
-### Frontend
+## Core Features Implemented
 
-#### `frontend/login-light.html`
-This is the entry page for both citizens and drivers.
+### 1) Citizen Authentication and Emergency Flow
+- Citizen OTP flow via SMS providers (Twilio/custom verification service fallback).
+- Citizen profile endpoints for fetch/update.
+- Emergency creation endpoint with citizen identity support.
+- Emergency cancel endpoint.
+- Dispatch status tracking endpoint.
 
-What each part is used for:
-- `Citizen login/register` section: handles phone-based OTP login and registration.
-- `Driver login/register` section: lets ambulance drivers log in or create an account.
-- `Dummy credentials` button: autofills the test driver login for quick demo use.
-- `OTP boxes`: accept the 6-digit verification code.
-- `Status note` area: shows login and validation messages.
-- `Socket.IO client loading`: connects the browser to the backend for real-time events after login.
+### 2) Driver System and Nearest Driver Assignment
+- Driver register/login APIs.
+- Real-time driver online/offline and location updates through Socket.IO.
+- Nearest-driver selection based on geographic distance (Haversine distance logic in backend).
+- Assignment lifecycle handling:
+  - dispatch call sent
+  - accept/decline
+  - patient picked
+  - emergency completed
 
-#### `frontend/ambulance-driver-dashboard.html`
-This is the ambulance driver mission console.
+### 3) Hospital Finder and Triage-Oriented Selection
+- Nearby hospitals endpoint with multi-source fallback strategy:
+  1. Google Places nearby hospitals
+  2. Local Mumbai fallback list
+  3. OpenStreetMap overpass fallback
+  4. Mock fallback (last resort)
+- Distance sorting and bed/availability-oriented metadata.
+- Hospital search and hospital details endpoints.
 
-What each part is used for:
-- `Mission summary`: shows the active SOS ID, patient type, and priority.
-- `Accept mission modal`: confirms the dispatch before navigation starts.
-- `Best Route Navigation panel`: shows the live Google Maps route.
-- `Route summary cards`: display distance, ETA, and estimated speed.
-- `OPEN MAP` button: opens turn-by-turn Google Maps navigation in a new tab.
-- `A* path arrows`: show direction guidance along the route.
-- `Traffic-aware routing`: changes route color based on traffic severity.
-- `Socket.IO connection`: receives dispatch calls from the backend in real time.
+### 4) Hospital Login and Bed Management
+- Hospital login bootstrap endpoint (bulk credential setup for imported hospitals).
+- Hospital login IDs in hosp0001 format.
+- Hospital credentials listing endpoint for admin usage.
+- Hospital auth endpoint that returns JWT.
+- Protected hospital profile endpoint.
+- Protected hospital facilities update endpoint:
+  - ICU beds
+  - General beds
+  - Low-acuity beds
+  - Total beds
+- Hospital dashboard integrated with login session storage and per-hospital updates.
 
-### Backend
+### 5) Real-Time System (Socket.IO)
+- Citizen and driver socket registration.
+- Dispatch event propagation in real time.
+- Location updates and mission state broadcasting.
+- Disconnect handling and availability transitions.
 
-#### `backend/server.js`
-This is the Express + Socket.IO API server.
+### 6) Admin and Data Operations
+- Driver seeding endpoint.
+- Migration endpoints for:
+  - forcing availability/location
+  - clustering/randomizing driver positions
+  - smart Mumbai clustering
+  - emergency backfill and identity migration helpers
+- XLSX hospital build/import scripts for Mumbai data pipeline.
 
-What each part is used for:
-- `Express app`: serves API endpoints.
-- `Socket.IO server`: pushes live dispatch events to drivers and citizens.
-- `MongoDB connection`: stores user and emergency data.
-- `OTP helpers`: send and verify OTPs using Twilio or a fallback service.
-- `Dispatch matching`: selects the nearest available driver.
-- `Real-time events`: handle driver registration, emergency assignment, and acceptance.
-- `/api/config`: exposes runtime configuration such as the Google Maps API key.
+## How Matching Is Implemented
 
-## Environment variables
+### Nearest Driver Logic
+- Driver locations are read from live socket updates and persisted driver state.
+- Distance between incident and driver is computed using Haversine formula.
+- Candidate drivers are filtered for availability and ranked by nearest distance.
+- Assignment metadata stores selection method (haversine-nearest) and timing details.
 
-Keep secrets in `backend/.env`. Do not hardcode them in HTML.
+### Nearest Hospital Logic
+- For user coordinates, backend requests nearby hospitals from Google Places first.
+- If unavailable/empty, it falls back to local curated Mumbai data.
+- If still empty, it uses OpenStreetMap query results.
+- Final fallback uses bundled mock hospital data.
+- Hospitals are normalized and sorted by nearest distance before response.
 
-Example:
+## API Overview
 
-```env
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/jeevanconnect
-JWT_SECRET=your_jwt_secret
-GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+### Health and Config
+- GET /health
+- GET /api/config
 
-# Optional SMS / OTP config
-TWILIO_ACCOUNT_SID=your_twilio_sid
-TWILIO_AUTH_TOKEN=your_twilio_token
-TWILIO_PHONE_NUMBER=+1234567890
-TWILIO_VERIFY_SERVICE_SID=your_verify_service_sid
-
-# Optional custom OTP service
-VERIFY_SERVICE_URL=https://your-otp-service.example/api/send-otp
-VERIFY_SERVICE_API_KEY=your_service_key
-VERIFY_SERVICE_AUTH_HEADER=Authorization
-```
-
-## Setup locally
-
-### 1. Backend
-
-```bash
-cd backend
-npm install
-npm start
-```
-
-The backend runs on `http://localhost:5000`.
-
-### 2. Frontend
-
-Open the HTML files directly in the browser or serve the `frontend` folder with a local server.
-
-If you want the frontend to point to a different backend URL, set:
-
-```html
-<script>
-  window.__API_BASE_URL__ = 'http://localhost:5000';
-</script>
-```
-
-before the app scripts in the HTML files.
-
-## API endpoints
-
-### Auth
-- `POST /api/auth/send-otp` - send OTP
-- `POST /api/auth/verify-otp` - verify OTP
-- `POST /api/auth/register` - register citizen
+### Citizen/Auth
+- POST /api/auth/send-otp
+- POST /api/auth/verify-otp
+- POST /api/auth/check-phone
+- POST /api/auth/register
+- GET /api/auth/me
+- GET /api/auth/profile
+- PUT /api/auth/profile
 
 ### Driver
-- `POST /api/driver/register` - register driver
-- `POST /api/driver/login` - driver login
+- POST /api/driver/register
+- POST /api/driver/login
+- GET /api/drivers
 
 ### Emergency
-- `POST /api/emergency` - create emergency request
+- POST /api/emergency
+- POST /api/emergency/:id/cancel
+- GET /api/emergency/:id/dispatch-status
 
-### Config
-- `GET /api/config` - returns runtime config used by the frontend, including `GOOGLE_MAPS_API_KEY`
+### Hospitals
+- GET /api/hospitals/all
+- GET /api/hospitals/nearby
+- GET /api/hospitals/search
+- GET /api/hospitals/:id
+- GET /api/hospitals/map/:id
 
-## Real-time events
+### Hospital Account Management
+- POST /api/hospital/bootstrap-logins
+- POST /api/hospital/migrate-login-ids
+- GET /api/hospital/credentials
+- POST /api/hospital/login
+- GET /api/hospital/me
+- PUT /api/hospital/me/facilities
 
-- `driver-online` - driver connected and available
-- `driver-register` - driver presence and location update
-- `dispatch-call` - new SOS sent to a driver
-- `driver-accept-dispatch` - driver accepted the mission
-- `new-emergency` - emergency broadcast
+### Admin/Migrations
+- POST /api/admin/seed/mumbai-drivers
+- GET /api/admin/ambulance-assignments
+- POST /api/admin/migrations/force-drivers-available-with-location
+- POST /api/admin/migrations/cluster-drivers-nearby
+- POST /api/admin/migrations/randomize-drivers-mumbai
+- POST /api/admin/migrations/smart-cluster-drivers-mumbai
+- POST /api/admin/migrations/backfill-emergency-assigned-driver
+- POST /api/admin/migrations/emergency-citizen-identity
 
-## Easiest free deployment
+## Technology Stack
 
-Use this if you want the fastest setup with the least manual work:
+### Frontend
+- HTML5
+- CSS3
+- Vanilla JavaScript
+- Socket.IO client
+- Google Maps JavaScript integration
 
-- GitHub for source control
-- Render free web service for the backend
-- Netlify free site for the frontend
-- MongoDB Atlas free cluster for the database
+### Backend
+- Node.js
+- Express
+- Socket.IO
+- Mongoose
+- MongoDB
+- JWT (jsonwebtoken)
+- bcryptjs
+- helmet and express-rate-limit
+- Twilio SDK
+- xlsx for hospital data import
 
-### 1. Push the code to GitHub
+## Environment Variables
 
-Run these commands from the project root:
+Create backend/.env from backend/.env.example and set values:
 
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/<your-username>/<your-repo>.git
-git push -u origin main
-```
+- PORT
+- MONGODB_URI
+- JWT_SECRET
+- GOOGLE_MAPS_API_KEY
+- GOOGLE_PLACES_API_KEY (optional override)
+- ADMIN_MIGRATION_KEY
+- RATE_LIMIT_WINDOW_MS
+- RATE_LIMIT_MAX
+- TWILIO_ACCOUNT_SID
+- TWILIO_AUTH_TOKEN
+- TWILIO_PHONE_NUMBER
+- TWILIO_VERIFY_SERVICE_SID
+- VERIFY_SERVICE_URL
+- VERIFY_SERVICE_API_KEY
+- VERIFY_SERVICE_AUTH_HEADER
 
-If the repo already exists locally, you only need `git add`, `git commit`, and `git push`.
+## Local Setup
 
-### 2. Deploy the backend on Render
+1. Install backend dependencies:
 
-1. Sign in to Render with GitHub.
-2. Create a new **Web Service** from your GitHub repo.
-3. Set the root directory to `backend`.
-4. Use these settings:
-  - Build command: `npm install`
-  - Start command: `npm start`
-5. Add environment variables in Render:
-  - `PORT=5000`
-  - `MONGODB_URI=your_mongodb_atlas_connection_string`
-  - `JWT_SECRET=your_secret`
-  - `GOOGLE_MAPS_API_KEY=your_google_maps_key`
-  - any Twilio or OTP values you use
-6. Deploy and copy the Render backend URL.
+   cd backend
+   npm install
 
-### 3. Deploy the frontend on Netlify
+2. Start backend:
 
-1. Sign in to Netlify with GitHub.
-2. Create a new site from the same repo.
-3. Set the publish directory to `frontend`.
-4. Add this environment variable in Netlify:
+   npm start
 
-```env
-API_BASE_URL=https://your-render-backend-url.onrender.com
-```
+3. Open frontend pages from frontend folder in browser (or serve as static files).
 
-5. Deploy the site.
+Backend default URL: http://localhost:5000
 
-### 4. Connect frontend to backend
+## Data Scripts
 
-The HTML files already read `window.__API_BASE_URL__` when it is available. For Netlify or any static host, inject the backend URL before the app scripts, or set the variable through your hosting platform if supported.
+From backend folder:
 
-Example:
+- npm run build:hospitals:mumbai
+- npm run import:hospitals:mongodb
 
-```html
-<script>
-  window.__API_BASE_URL__ = 'https://your-render-backend-url.onrender.com';
-</script>
-```
+## GitHub Push Checklist
 
-### 5. Check the app
+1. Ensure backend/.env is not committed.
+2. Ensure logs and temporary files are excluded by .gitignore.
+3. Run:
 
-1. Open the frontend URL.
-2. Log in with OTP or dummy driver credentials.
-3. Trigger a test SOS.
-4. Confirm the driver dashboard loads the map and route.
+   git add .
+   git status
+   git commit -m "Project cleanup and README update"
+   git push
 
-## Notes on Google Maps
+## Notes
 
-- The Google Maps key is no longer stored in the HTML.
-- The frontend fetches it from the backend config endpoint.
-- If the map stays on loading, check that `GOOGLE_MAPS_API_KEY` is valid, billing is enabled, and the Maps JavaScript API is enabled in Google Cloud.
-
-## Quick GitHub workflow
-
-When you change code later, repeat this workflow:
-
-```bash
-git add .
-git commit -m "Describe your change"
-git push
-```
-
-If you add new environment variables, update both `backend/.env` locally and the environment settings on your hosting platform.
-
-## Technology stack
-
-- Frontend: HTML, CSS, JavaScript
-- Backend: Node.js, Express, Socket.IO
-- Database: MongoDB, Mongoose
-- Authentication: JWT, OTP verification
-- Maps: Google Maps JavaScript API
-- Realtime: Socket.IO
-
-## What is already implemented
-
-- Citizen OTP login and registration
-- Driver login with dummy test credentials
-- Real-time SOS dispatching
-- Driver acceptance flow
-- Live route display with Google Maps
-- Traffic-aware route coloring
-- Direction arrows on the route
-- Config endpoint for runtime secrets
-
-## Future improvements
-
-- Persist dispatch history in MongoDB
-- Add live ambulance GPS tracking
-- Add SMS delivery status
-- Add admin dashboard and audit logs
-
-## License
-
-This project is for educational and demo purposes.
+- This repository now excludes one-off debug scripts and generated log artifacts used during local troubleshooting.
+- Hospital login IDs are maintained in hosp0001 format and exposed as Hospital No in credentials responses.

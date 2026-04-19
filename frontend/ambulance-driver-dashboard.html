@@ -56,6 +56,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .status-pill.busy .sdot{background:var(--red);}
 @keyframes sdPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.75)}}
 .driver-av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#bfdbfe,#3b82f6);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:15px;}
+.logout-btn{border:none;background:white;color:var(--red);border:1px solid rgba(220,38,38,.2);border-radius:20px;padding:7px 12px;font-size:10px;font-weight:800;letter-spacing:1px;cursor:pointer;transition:all .2s;}
+.logout-btn:hover{background:#fff1f2;}
 
 .content{flex:1;overflow-y:auto;padding-bottom:80px;}
 
@@ -124,6 +126,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .google-nav-btn{border:none;background:var(--cyan);color:#fff;font-size:10px;font-weight:700;letter-spacing:.8px;padding:8px 10px;border-radius:9px;cursor:pointer;}
 .google-nav-btn:hover{background:#0369a1;}
 .google-route-frame{width:100%;height:220px;border:0;background:#f8fafc;}
+.nav-lock-note{display:none;padding:12px 14px;background:#eff6ff;border-bottom:1px solid var(--border);font-size:12px;color:#1e3a8a;}
+.nav-lock-note.show{display:block;}
+.gm-input-panel{padding:8px 10px;background:#ffffff;border-bottom:1px solid var(--border);display:grid;gap:7px;}
+.gm-input-row{display:grid;grid-template-columns:20px 1fr;gap:8px;align-items:center;}
+.gm-input-dot{width:10px;height:10px;border-radius:50%;margin-left:5px;}
+.gm-input-dot.start{background:#0ea5e9;}
+.gm-input-dot.end{background:#ef4444;}
+.gm-route-input{width:100%;height:32px;border:1px solid var(--border2);border-radius:8px;padding:0 10px;font-size:12px;color:var(--text);background:#f8fafc;}
+.gm-route-input:focus{outline:none;border-color:#38bdf8;box-shadow:0 0 0 2px rgba(56,189,248,.2);}
 
 /* ── MAP CANVAS ── */
 .map-canvas{position:relative;height:340px;background:linear-gradient(160deg,#eaf3fb 0%,#dce9f4 100%);}
@@ -366,6 +377,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         <div class="sdot"></div>
         <span id="statusLabel">AVAILABLE</span>
       </div>
+      <button class="logout-btn" type="button" onclick="logoutSession()">LOGOUT</button>
       <div class="driver-av">👨</div>
     </div>
   </div>
@@ -376,10 +388,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div class="driver-strip">
       <div class="driver-av2">👨‍✈️</div>
       <div style="flex:1">
-        <div class="driver-name">Rajesh Kumar</div>
+        <div class="driver-name" id="driverNameLabel">Rajesh Kumar</div>
         <div class="driver-meta">
-          <span>🚑 MH-15-AB-4821</span>
-          <span class="driver-id">DRV-4821</span>
+          <span id="driverAmbulanceLabel">🚑 MH-15-AB-4821</span>
+          <span class="driver-id" id="driverIdLabel">DRV-4821</span>
         </div>
       </div>
       <div class="shift-badge">ON SHIFT</div>
@@ -433,16 +445,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
           <div class="mrow-icon red">📍</div>
           <div>
             <div class="mrow-label">Patient Location</div>
-            <div class="mrow-val" id="patientLoc">Near Nashik Railway Station</div>
-            <div class="mrow-sub" id="patientCoords">20.0034°N, 73.7899°E</div>
+            <div class="mrow-val" id="patientLoc">Live SOS location received</div>
+            <div class="mrow-sub" id="patientCoords">19.0954°N, 72.8975°E</div>
+            <div class="mrow-sub" id="driverAssignedLoc">Driver DB Location: Mumbai, Maharashtra</div>
+            <div class="mrow-sub" id="driverCoords">Driver DB GPS: 19.0760°N, 72.8777°E</div>
           </div>
         </div>
         <div class="mission-row">
           <div class="mrow-icon green">🏥</div>
           <div>
             <div class="mrow-label">Assigned Hospital</div>
-            <div class="mrow-val green" id="assignedHosp">Civil Hospital, Nashik</div>
-            <div class="mrow-sub">14 ICU beds · Trauma bay ready</div>
+            <div class="mrow-val green" id="assignedHosp">Finding nearest Mumbai hospital...</div>
+            <div class="mrow-sub" id="assignedHospMeta">Loading bed/capacity details</div>
           </div>
         </div>
         <div class="mission-row">
@@ -457,8 +471,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
           <div class="mrow-icon cyan">🤖</div>
           <div>
             <div class="mrow-label">AI Assignment</div>
-            <div class="mrow-val cyan">98.4% Match · Haversine: 1.2 km</div>
-            <div class="mrow-sub">A* Route: Gangapur Rd · CRITICAL Priority</div>
+            <div class="mrow-val cyan" id="aiAssignmentLine">98.4% Match · Haversine: 1.2 km</div>
+            <div class="mrow-sub" id="aiRouteLine">A* Route: Calculating in Mumbai · CRITICAL Priority</div>
           </div>
         </div>
       </div>
@@ -472,10 +486,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         <div class="google-nav-head">
           <div>
             <div class="google-nav-title">Best Route Navigation</div>
-            <div class="google-nav-sub">Real-time route to SOS location</div>
+            <div class="google-nav-sub" id="googleNavSub">Real-time route to SOS location</div>
           </div>
-          <button class="google-nav-btn" onclick="openGoogleNavInNewTab()">OPEN MAP</button>
+          <button class="google-nav-btn" onclick="openGoogleNavInNewTab()">REFRESH ROUTE</button>
         </div>
+        <div class="gm-input-panel">
+          <div class="gm-input-row">
+            <span class="gm-input-dot start"></span>
+            <input id="gmStartInput" class="gm-route-input" type="text" readonly value="Auto from driver DB location" aria-label="Start location" title="Start location" placeholder="Start location">
+          </div>
+          <div class="gm-input-row">
+            <span class="gm-input-dot end"></span>
+            <input id="gmEndInput" class="gm-route-input" type="text" readonly value="Auto from patient SOS location" aria-label="Stop location" title="Stop location" placeholder="Stop location">
+          </div>
+        </div>
+        <div id="navLockNote" class="nav-lock-note show">Accept mission to start live navigation map.</div>
         <div id="googleMapsContainer" style="width: 100%; height: 300px; background: #e8eef5; position: relative; overflow: hidden;">
           <div id="googleMap" style="width: 100%; height: 100%;"></div>
           <div id="mapLoadingSpinner" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #64748b;">
@@ -483,7 +508,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
             <div style="font-size: 12px;">Loading map...</div>
           </div>
         </div>
-        <div style="padding: 14px 16px; background: #f8fafc; border-top: 1px solid var(--border);">
+        <div id="routeSummaryPanel" style="padding: 14px 16px; background: #f8fafc; border-top: 1px solid var(--border);">
           <div style="font-size: 11px; font-weight: 700; color: var(--text3); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">Route Summary</div>
           <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
             <div style="text-align: center; padding: 8px; background: white; border-radius: 10px; border: 1px solid var(--border);">
@@ -524,13 +549,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div class="sheet-sub">Review patient details before accepting.</div>
     <div class="patient-card">
       <div class="pc-row"><div class="pc-label">Emergency</div><div class="pc-val red" id="modalType">CARDIAC ARREST</div></div>
-      <div class="pc-row"><div class="pc-label">Patient</div><div class="pc-val">Arjun Sharma, 28M</div></div>
-      <div class="pc-row"><div class="pc-label">Blood Group</div><div class="pc-val amber">B Positive</div></div>
-      <div class="pc-row"><div class="pc-label">⚠ Allergy</div><div class="pc-val red">Penicillin</div></div>
-      <div class="pc-row"><div class="pc-label">Distance</div><div class="pc-val green">1.2 km — Haversine ✓</div></div>
-      <div class="pc-row"><div class="pc-label">Hospital</div><div class="pc-val cyan">Civil Hospital, Nashik</div></div>
-      <div class="pc-row"><div class="pc-label">A* Route</div><div class="pc-val green">Gangapur Rd · 4 min</div></div>
-      <div class="pc-row"><div class="pc-label">AI Confidence</div><div class="pc-val">98.4% match</div></div>
+      <div class="pc-row"><div class="pc-label">Patient</div><div class="pc-val" id="modalPatient">Citizen SOS Request</div></div>
+      <div class="pc-row"><div class="pc-label">Requested By</div><div class="pc-val" id="modalRequester">Citizen SOS Request</div></div>
+      <div class="pc-row"><div class="pc-label">Blood Group</div><div class="pc-val amber" id="modalBlood">Unknown</div></div>
+      <div class="pc-row"><div class="pc-label">⚠ Allergy</div><div class="pc-val red" id="modalAllergy">Not reported</div></div>
+      <div class="pc-row"><div class="pc-label">Distance</div><div class="pc-val green" id="modalDistance">1.2 km — Haversine ✓</div></div>
+      <div class="pc-row"><div class="pc-label">Hospital</div><div class="pc-val cyan" id="modalHospital">Finding nearest Mumbai hospital...</div></div>
+      <div class="pc-row"><div class="pc-label">A* Route</div><div class="pc-val green" id="modalRoute">Calculating best route...</div></div>
+      <div class="pc-row"><div class="pc-label">AI Confidence</div><div class="pc-val" id="modalConfidence">98.4% match</div></div>
     </div>
     <button class="btn-confirm" onclick="confirmAccept()">🟢 CONFIRM & START NAVIGATION</button>
     <button class="btn-decline-sh" onclick="closeAcceptModal()">Decline Mission</button>
@@ -538,9 +564,28 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 </div>
 
 <script>
-  const API_BASE_URL = window.__API_BASE_URL__ || ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'http://localhost:5000' : 'https://jeevanconnect-real-time-emergency.onrender.com');
+  const API_BASE_URL = window.__API_BASE_URL__ || (() => {
+    try {
+      return localStorage.getItem('apiBaseUrl') || 'http://localhost:5000';
+    } catch (_) {
+      return 'http://localhost:5000';
+    }
+  })();
+  window.__googleMapsAuthFailed = false;
+
+  window.gm_authFailure = function gmAuthFailureDriver() {
+    window.__googleMapsAuthFailed = true;
+    if (typeof window.__showDriverMapFallback === 'function') {
+      window.__showDriverMapFallback('Google Maps auth failed');
+    }
+  };
+
   window.__googleMapsApiReady = function () {
     console.log('Google Maps API loaded');
+    window.__googleMapsAuthFailed = false;
+    if (typeof window.__tryInitializeDriverMap === 'function') {
+      window.__tryInitializeDriverMap('maps-api-ready');
+    }
   };
 
   const socketScript = document.createElement('script');
@@ -559,6 +604,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       const config = await response.json();
       if (!config.googleMapsApiKey) {
         console.warn('Google Maps API key missing from backend config');
+        window.__googleMapsAuthFailed = true;
+        if (typeof window.__showDriverMapFallback === 'function') {
+          window.__showDriverMapFallback('Google Maps key missing');
+        }
         return;
       }
 
@@ -566,9 +615,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       script.async = true;
       script.defer = true;
       script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(config.googleMapsApiKey) + '&libraries=geometry&callback=__googleMapsApiReady';
+      script.onerror = function () {
+        window.__googleMapsAuthFailed = true;
+        if (typeof window.__showDriverMapFallback === 'function') {
+          window.__showDriverMapFallback('Failed to load Google Maps script');
+        }
+      };
       document.head.appendChild(script);
     } catch (error) {
       console.error('Failed to load Google Maps API key from backend config', error);
+      window.__googleMapsAuthFailed = true;
+      if (typeof window.__showDriverMapFallback === 'function') {
+        window.__showDriverMapFallback('Failed to load maps script');
+      }
     }
   })();
 </script>
@@ -585,16 +644,72 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     });
 
     dispatchSocket.on('connect', () => {
-      dispatchSocket.emit('driver-register', {
-        driverId: 'DRV-8204',
-        name: 'Rajesh Kumar',
-        vehicle: 'MH-15-AB-4821',
-        isAvailable: isAvailable
-      });
+      dispatchSocket.emit('driver-register', getDispatchDriverPayload());
     });
 
     dispatchSocket.on('dispatch-call', (incomingCall) => {
+      if (!isDispatchForCurrentDriver(incomingCall)) return;
       applyDispatchToMission(incomingCall);
+    });
+
+    dispatchSocket.on('dispatch-accept-ignored', (payload) => {
+      if (!currentDispatch || !payload || payload.sosId !== currentDispatch.sosId) return;
+      missionAccepted = false;
+      isAvailable = true;
+      currentDispatch.status = 'assigned';
+      document.getElementById('statusPill').className = 'status-pill available';
+      document.getElementById('statusLabel').textContent = 'AVAILABLE';
+      renderMissionActions();
+      closeAcceptModal();
+      showToast(`❌ ${payload.reason || 'Mission acceptance denied by dispatch'}`);
+    });
+
+    dispatchSocket.on('hospital-assigned', (payload) => {
+      if (!payload || !currentDispatch || payload.sosId !== currentDispatch.sosId) return;
+
+      currentDispatch = {
+        ...currentDispatch,
+        status: 'hospital_assigned',
+        assignedHospital: payload.hospital || currentDispatch.assignedHospital || null
+      };
+      missionAccepted = true;
+      navigationStarted = true;
+      setNavigationMapVisible(true);
+      hospitalRouteLocked = true;
+
+      const hospitalName = payload.hospital?.name || 'Assigned Hospital';
+      document.getElementById('assignedHosp').textContent = hospitalName;
+      const etaHospNameEl = document.getElementById('etaHospName');
+      if (etaHospNameEl) etaHospNameEl.textContent = hospitalName;
+      document.getElementById('modalHospital').textContent = hospitalName;
+      document.getElementById('assignedHospMeta').textContent = payload.hospital?.type
+        ? `${payload.hospital.type} hospital · ${payload.hospital.facilities?.icuBeds || 0} ICU beds`
+        : 'Hospital selected by dispatch';
+      document.getElementById('aiRouteLine').textContent = 'A* Route: Patient pickup point → Assigned hospital';
+
+      routePhase = 'to_hospital';
+      renderMissionActions();
+      lastSyncRenderKey = null;
+      renderGoogleRoute(
+        payload.patientLocation || currentDispatch.patientLocation || currentDispatch.location,
+        payload.patientLocation || currentDispatch.patientLocation || currentDispatch.location,
+        payload.hospital?.location || currentDispatch.assignedHospital?.location || null
+      );
+      showToast('🏥 Best hospital selected for current emergency');
+    });
+
+    dispatchSocket.on('emergency-completed', (payload) => {
+      if (payload && currentDispatch && payload.sosId !== currentDispatch.sosId) return;
+      if (payload?.sosId) {
+        markRecentlyCompletedSos(payload.sosId);
+      }
+      currentDispatch = null;
+      missionAccepted = false;
+      isAvailable = true;
+      document.getElementById('statusPill').className = 'status-pill available';
+      document.getElementById('statusLabel').textContent = 'AVAILABLE';
+      renderMissionActions();
+      showToast('✅ Emergency completed and ambulance released');
     });
   };
 
@@ -607,20 +722,537 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     setTimeout(() => t.classList.remove('show'), 3200);
   }
 
-  const defaultCoords = { lat: 19.9975, lng: 73.7898 };
-  const fallbackDestination = { lat: 20.0034, lng: 73.7899 };
+  function logoutSession() {
+    ['token', 'driver', 'authRole', 'driverLoginMode'].forEach(key => localStorage.removeItem(key));
+    window.location.href = 'index.html';
+  }
+
+  const defaultCoords = { lat: 19.0760, lng: 72.8777 };
+  const fallbackDestination = { lat: 19.0954, lng: 72.8975 };
+  const acceptedDispatchKey = 'jc_dispatch_accept';
+  const recentlyCompletedDispatchKey = 'jc_recently_completed_dispatch';
+  const mumbaiReferencePoints = [
+    { name: 'Colaba', lat: 18.9067, lng: 72.8147 },
+    { name: 'Mumbai Central', lat: 18.9681, lng: 72.8190 },
+    { name: 'Parel', lat: 18.9986, lng: 72.8437 },
+    { name: 'Dadar', lat: 19.0178, lng: 72.8478 },
+    { name: 'Sion', lat: 19.0467, lng: 72.8619 },
+    { name: 'Bandra West', lat: 19.0596, lng: 72.8295 },
+    { name: 'Kurla', lat: 19.0728, lng: 72.8826 },
+    { name: 'Ghatkopar', lat: 19.0846, lng: 72.9069 },
+    { name: 'Andheri West', lat: 19.1197, lng: 72.8468 },
+    { name: 'Juhu', lat: 19.1075, lng: 72.8372 },
+    { name: 'Powai', lat: 19.1176, lng: 72.9060 },
+    { name: 'Goregaon', lat: 19.1663, lng: 72.8526 },
+    { name: 'Malad', lat: 19.1864, lng: 72.8480 },
+    { name: 'Kandivali', lat: 19.2043, lng: 72.8510 },
+    { name: 'Borivali', lat: 19.2307, lng: 72.8567 }
+  ];
   let driverCurrentLocation = { ...defaultCoords };
+  let lastLiveGpsLocation = null;
+  let lastLiveGpsAt = 0;
+  let gpsSyncState = 'pending'; // pending | live | fallback
+  let driverDbAssignedLocation = {
+    lat: defaultCoords.lat,
+    lng: defaultCoords.lng,
+    label: 'Mumbai, Maharashtra'
+  };
+  let currentDriverProfile = null;
+
+  function normalizeDriverToken(value) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function isDispatchForCurrentDriver(call) {
+    if (!call) return false;
+
+    const assignedTokens = [
+      call.driverId,
+      call.driverMongoId,
+      call.driverLoginId,
+      call.driverAmbulanceId,
+      call.driverName,
+      call.vehicle
+    ].map(normalizeDriverToken).filter(Boolean);
+
+    if (!assignedTokens.length) return true;
+
+    const currentTokens = [
+      currentDriverProfile?.id,
+      currentDriverProfile?._id,
+      currentDriverProfile?.driverId,
+      currentDriverProfile?.loginId,
+      currentDriverProfile?.ambulanceId,
+      currentDriverProfile?.name
+    ].map(normalizeDriverToken).filter(Boolean);
+
+    if (!currentTokens.length) return false;
+    return currentTokens.some((token) => assignedTokens.includes(token));
+  }
+
+  function haversineKm(a, b) {
+    const toRad = (deg) => deg * Math.PI / 180;
+    const R = 6371;
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  function getEffectiveRouteOrigin() {
+    if (driverDbAssignedLocation && typeof driverDbAssignedLocation.lat === 'number' && typeof driverDbAssignedLocation.lng === 'number') {
+      return { lat: driverDbAssignedLocation.lat, lng: driverDbAssignedLocation.lng };
+    }
+    if (driverCurrentLocation && typeof driverCurrentLocation.lat === 'number' && typeof driverCurrentLocation.lng === 'number') {
+      return { lat: driverCurrentLocation.lat, lng: driverCurrentLocation.lng };
+    }
+    return { ...defaultCoords };
+  }
+
+  function isGenericCitizenLabel(value) {
+    const text = String(value || '').trim().toLowerCase();
+    return !text || /^(citizen sos request|unknown citizen|citizen|user|na)$/.test(text);
+  }
+
+  function pickNearestMumbaiReference(point) {
+    if (!point || typeof point.lat !== 'number' || typeof point.lng !== 'number') return null;
+    let nearest = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const ref of mumbaiReferencePoints) {
+      const distance = haversineKm(point, ref);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = ref;
+      }
+    }
+    return nearest ? { ...nearest, distanceKm: nearestDistance } : null;
+  }
+
+  function sanitizeMumbaiCoordinate(inputLocation, fallbackLabel) {
+    if (!inputLocation || typeof inputLocation.lat !== 'number' || typeof inputLocation.lng !== 'number') return null;
+    const nearest = pickNearestMumbaiReference({ lat: inputLocation.lat, lng: inputLocation.lng });
+    if (!nearest) {
+      return {
+        lat: inputLocation.lat,
+        lng: inputLocation.lng,
+        label: fallbackLabel || 'Mumbai, Maharashtra'
+      };
+    }
+
+    const suspiciousAtSea = inputLocation.lng < 72.81 || nearest.distanceKm > 6;
+    if (suspiciousAtSea) {
+      return {
+        lat: nearest.lat,
+        lng: nearest.lng,
+        label: `${nearest.name}, Mumbai, Maharashtra`
+      };
+    }
+
+    return {
+      lat: inputLocation.lat,
+      lng: inputLocation.lng,
+      label: fallbackLabel || `${nearest.name}, Mumbai, Maharashtra`
+    };
+  }
+
+  function getStoredDriver() {
+    try {
+      return JSON.parse(localStorage.getItem('driver') || 'null');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function fetchDriverFromDb(profile) {
+    if (!profile) return null;
+    try {
+      const response = await fetch(API_BASE_URL + '/api/drivers');
+      const data = await response.json();
+      const drivers = Array.isArray(data?.drivers) ? data.drivers : [];
+      return drivers.find((d) => (
+        (profile.id && d.id === profile.id) ||
+        (profile.driverId && d.driverId === profile.driverId) ||
+        (profile.loginId && d.loginId === profile.loginId) ||
+        (profile.ambulanceId && d.ambulanceId === profile.ambulanceId)
+      )) || null;
+    } catch (error) {
+      console.warn('Could not fetch driver list from DB:', error);
+      return null;
+    }
+  }
+
+  function applyDriverProfileToUI(profile) {
+    if (!profile) return;
+
+    const nameLabel = document.getElementById('driverNameLabel');
+    const ambLabel = document.getElementById('driverAmbulanceLabel');
+    const idLabel = document.getElementById('driverIdLabel');
+
+    if (nameLabel) nameLabel.textContent = profile.name || 'Ambulance Driver';
+    if (ambLabel) ambLabel.textContent = '🚑 ' + (profile.ambulanceId || 'A-UNIT');
+    if (idLabel) idLabel.textContent = profile.driverId || (profile.loginId ? profile.loginId.toUpperCase() : 'DRV');
+
+    const status = (profile.status || '').toLowerCase();
+    if (status === 'busy' || status === 'available') {
+      const shouldBeAvailable = status === 'available';
+      isAvailable = shouldBeAvailable;
+      document.getElementById('statusPill').className = 'status-pill ' + (shouldBeAvailable ? 'available' : 'busy');
+      document.getElementById('statusLabel').textContent = shouldBeAvailable ? 'AVAILABLE' : 'BUSY';
+    }
+  }
+
+  function updateDriverDbLocationUI() {
+    const driverAssignedLocEl = document.getElementById('driverAssignedLoc');
+    const driverCoordsEl = document.getElementById('driverCoords');
+    if (driverAssignedLocEl) {
+      driverAssignedLocEl.textContent = `Driver DB Location: ${driverDbAssignedLocation.label || 'Mumbai, Maharashtra'}`;
+    }
+    if (driverCoordsEl) {
+      driverCoordsEl.textContent = `Driver DB GPS: ${driverDbAssignedLocation.lat.toFixed(4)}°N, ${driverDbAssignedLocation.lng.toFixed(4)}°E`;
+    }
+  }
+
+  async function initializeDriverContext() {
+    const stored = getStoredDriver();
+    currentDriverProfile = stored || currentDriverProfile;
+
+    const dbDriver = await fetchDriverFromDb(stored || {});
+    if (dbDriver) {
+      currentDriverProfile = { ...(stored || {}), ...dbDriver };
+      if (dbDriver.location && typeof dbDriver.location.lat === 'number' && typeof dbDriver.location.lng === 'number') {
+        const safeDbLocation = sanitizeMumbaiCoordinate(
+          dbDriver.location,
+          dbDriver.locationName || dbDriver.location.address || 'Mumbai, Maharashtra'
+        );
+        driverDbAssignedLocation = safeDbLocation || {
+          lat: dbDriver.location.lat,
+          lng: dbDriver.location.lng,
+          label: dbDriver.locationName || dbDriver.location.address || 'Mumbai, Maharashtra'
+        };
+        driverCurrentLocation = {
+          lat: driverDbAssignedLocation.lat,
+          lng: driverDbAssignedLocation.lng
+        };
+        gpsSyncState = 'fallback';
+      }
+    }
+
+    applyDriverProfileToUI(currentDriverProfile);
+    updateDriverDbLocationUI();
+  }
+
+  function matchesCurrentDriverIdentity(driverInfo = {}) {
+    const currentTokens = [
+      currentDriverProfile?.id,
+      currentDriverProfile?._id,
+      currentDriverProfile?.driverId,
+      currentDriverProfile?.loginId,
+      currentDriverProfile?.ambulanceId,
+      currentDriverProfile?.name
+    ].map(normalizeDriverToken).filter(Boolean);
+
+    const candidateTokens = [
+      driverInfo.id,
+      driverInfo.mongoId,
+      driverInfo.driverId,
+      driverInfo.loginId,
+      driverInfo.ambulanceId,
+      driverInfo.name,
+      driverInfo.vehicle
+    ].map(normalizeDriverToken).filter(Boolean);
+
+    return currentTokens.length > 0 && candidateTokens.some((token) => currentTokens.includes(token));
+  }
+
+  function getAcceptedDispatchMarker() {
+    try {
+      const raw = localStorage.getItem(acceptedDispatchKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !parsed.sosId || !parsed.acceptedAt) return null;
+      return parsed;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function clearAcceptedDispatchMarker() {
+    try {
+      localStorage.removeItem(acceptedDispatchKey);
+    } catch (_) {}
+  }
+
+  function getRecentlyCompletedMarker() {
+    try {
+      const raw = localStorage.getItem(recentlyCompletedDispatchKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !parsed.sosId || !parsed.until) return null;
+      if (Date.now() > Number(parsed.until || 0)) {
+        localStorage.removeItem(recentlyCompletedDispatchKey);
+        return null;
+      }
+      return parsed;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function markRecentlyCompletedSos(sosId, ttlMs = 5 * 60 * 1000) {
+    if (!sosId) return;
+    recentlyCompletedSosId = sosId;
+    recentlyCompletedUntil = Date.now() + ttlMs;
+    try {
+      localStorage.setItem(recentlyCompletedDispatchKey, JSON.stringify({
+        sosId,
+        until: recentlyCompletedUntil,
+        at: Date.now()
+      }));
+    } catch (_) {}
+  }
+
+  function hasActiveRecentlyCompletedLock() {
+    const marker = getRecentlyCompletedMarker();
+    if (!marker || !marker.sosId) return false;
+    recentlyCompletedSosId = marker.sosId;
+    recentlyCompletedUntil = Number(marker.until || 0);
+    return Date.now() < recentlyCompletedUntil;
+  }
+
+  async function restoreLiveDispatchFromBackend() {
+    try {
+      const completedMarker = getRecentlyCompletedMarker();
+      if (completedMarker && completedMarker.sosId) {
+        recentlyCompletedSosId = completedMarker.sosId;
+        recentlyCompletedUntil = Number(completedMarker.until || 0);
+      }
+
+      const response = await fetch(API_BASE_URL + '/api/admin/ambulance-assignments?limit=50');
+      const data = await response.json();
+      const assignments = Array.isArray(data?.assignments) ? data.assignments : [];
+      const liveAssignment = assignments.find((assignment) => {
+        if (!assignment) return false;
+        const status = String(assignment.status || '').toLowerCase();
+        if (['completed', 'cancelled'].includes(status)) return false;
+        return matchesCurrentDriverIdentity(assignment.driver || {});
+      });
+
+      if (!liveAssignment) return null;
+
+      const now = Date.now();
+      const liveSosId = String(liveAssignment.sosId || liveAssignment.emergencyId || '');
+      if (recentlyCompletedSosId && liveSosId === String(recentlyCompletedSosId) && now < recentlyCompletedUntil) {
+        return null;
+      }
+
+      const previousDispatch = currentDispatch;
+      const previousAccepted = missionAccepted;
+      const nextSosId = liveAssignment.sosId || liveAssignment.emergencyId || null;
+      const sameMissionAsBefore = previousDispatch && String(previousDispatch.sosId) === String(nextSosId);
+
+      const patientLocation = liveAssignment.patientLocation || null;
+      const hospital = liveAssignment.hospital || null;
+
+      currentDispatch = {
+        sosId: liveAssignment.sosId || liveAssignment.emergencyId || null,
+        emergencyId: liveAssignment.emergencyId || liveAssignment.sosId || null,
+        emergencyType: liveAssignment.emergencyType || 'Emergency',
+        priority: liveAssignment.priority || 'high',
+        status: liveAssignment.status || 'assigned',
+        patientLocation,
+        location: patientLocation,
+        assignedHospital: hospital,
+        driverId: liveAssignment.driver?.driverId || liveAssignment.driver?.id || null,
+        driverMongoId: liveAssignment.driver?.mongoId || null,
+        driverLoginId: liveAssignment.driver?.loginId || null,
+        driverAmbulanceId: liveAssignment.driver?.ambulanceId || null,
+        driverName: liveAssignment.driver?.name || currentDriverProfile?.name || 'Ambulance Driver',
+        vehicle: liveAssignment.driver?.vehicle || liveAssignment.driver?.ambulanceId || 'A-UNIT',
+        driverPhone: liveAssignment.driver?.phone || '',
+        driverLocation: currentDriverProfile?.location || driverDbAssignedLocation || null,
+        assignmentBasis: liveAssignment.assignmentBasis || null,
+        citizenName: !isGenericCitizenLabel(liveAssignment.citizen?.name)
+          ? liveAssignment.citizen?.name
+          : (liveAssignment.requester?.name || liveAssignment.initiatedBy?.name || liveAssignment.citizen?.name || 'Citizen SOS Request'),
+        citizenPhone: liveAssignment.citizen?.phone || liveAssignment.requester?.phone || '',
+        requesterName: liveAssignment.requester?.name || liveAssignment.initiatedBy?.name || liveAssignment.citizen?.name || '',
+        requesterPhone: liveAssignment.requester?.phone || liveAssignment.initiatedBy?.phone || liveAssignment.citizen?.phone || '',
+        initiatedBy: liveAssignment.initiatedBy || null
+      };
+
+      const acceptedMarker = getAcceptedDispatchMarker();
+      const markerMatches = acceptedMarker
+        && String(acceptedMarker.sosId) === String(currentDispatch.sosId)
+        && (Date.now() - Number(acceptedMarker.acceptedAt || 0)) < (6 * 60 * 60 * 1000);
+      const assignmentStatus = String(liveAssignment.status || '').toLowerCase();
+      const backendHospitalPhase = ['hospital_assigned', 'patient_picked', 'to_hospital', 'in_transit', 'arrived'].includes(assignmentStatus);
+      missionAccepted = isAcceptedDispatchStatus(assignmentStatus)
+        || Boolean(markerMatches)
+        || Boolean(sameMissionAsBefore && previousAccepted);
+      if (backendHospitalPhase) {
+        hospitalRouteLocked = true;
+      } else if (!sameMissionAsBefore) {
+        hospitalRouteLocked = false;
+      }
+      if (missionAccepted) {
+        currentDispatch.status = isAcceptedDispatchStatus(assignmentStatus) ? assignmentStatus : 'enroute';
+      }
+      isAvailable = !missionAccepted;
+      document.getElementById('statusPill').className = 'status-pill ' + (missionAccepted ? 'busy' : 'available');
+      document.getElementById('statusLabel').textContent = missionAccepted ? 'BUSY' : 'AVAILABLE';
+      await applyDispatchToMission(currentDispatch);
+
+      if (!missionAccepted) {
+        navigationStarted = false;
+        setNavigationMapVisible(false);
+        hospitalRouteLocked = false;
+        lastSyncRenderKey = null;
+        return currentDispatch;
+      }
+
+      navigationStarted = true;
+      setNavigationMapVisible(true);
+
+      const routeOrigin = getEffectiveRouteOrigin();
+      const hospitalLocation = hospital?.location || currentDispatch.assignedHospital?.location || null;
+      const shouldRouteHospital = hospitalRouteLocked
+        || routePhase === 'to_hospital'
+        || isAcceptedDispatchStatus(currentDispatch.status) && ['hospital_assigned', 'patient_picked', 'to_hospital', 'in_transit', 'arrived'].includes(String(currentDispatch.status || '').toLowerCase());
+      const syncRenderKey = shouldRouteHospital
+        ? `h:${(patientLocation?.lat || 0).toFixed(5)},${(patientLocation?.lng || 0).toFixed(5)}>${(hospitalLocation?.lat || 0).toFixed(5)},${(hospitalLocation?.lng || 0).toFixed(5)}`
+        : `p:${routeOrigin.lat.toFixed(5)},${routeOrigin.lng.toFixed(5)}>${(patientLocation?.lat || 0).toFixed(5)},${(patientLocation?.lng || 0).toFixed(5)}`;
+      if (syncRenderKey === lastSyncRenderKey) {
+        return currentDispatch;
+      }
+      lastSyncRenderKey = syncRenderKey;
+
+      if (shouldRouteHospital && hospitalLocation && patientLocation) {
+        hospitalRouteLocked = true;
+        routePhase = 'to_hospital';
+        renderGoogleRoute(patientLocation, patientLocation, hospitalLocation);
+      } else if (!hospitalRouteLocked) {
+        routePhase = 'to_patient';
+        renderGoogleRoute(routeOrigin, patientLocation || fallbackDestination, hospitalLocation);
+      }
+
+      if (markerMatches && String(liveAssignment.status || '').toLowerCase() !== 'enroute' && dispatchSocket && dispatchSocket.connected) {
+        dispatchSocket.emit('driver-accept-dispatch', {
+          sosId: currentDispatch.sosId,
+          driverId: currentDriverProfile?.id || currentDriverProfile?.driverId || null,
+          driverName: currentDriverProfile?.name || 'Ambulance Driver',
+          vehicle: currentDriverProfile?.ambulanceId || 'A-UNIT'
+        });
+      }
+
+      return currentDispatch;
+    } catch (error) {
+      console.warn('Could not restore live dispatch from backend:', error);
+      return null;
+    }
+  }
+
+  function getDispatchDriverPayload() {
+    return {
+      driverId: currentDriverProfile?.id || currentDriverProfile?.driverId || 'DRV-LOCAL',
+      loginId: currentDriverProfile?.loginId || null,
+      ambulanceId: currentDriverProfile?.ambulanceId || null,
+      name: currentDriverProfile?.name || 'Ambulance Driver',
+      vehicle: currentDriverProfile?.ambulanceId || 'A-UNIT',
+      location: driverCurrentLocation,
+      isAvailable: isAvailable
+    };
+  }
+
+  async function resolveNearestHospital(target) {
+    if (!target) return null;
+    try {
+      const url = `${API_BASE_URL}/api/hospitals/nearby?lat=${encodeURIComponent(target.lat)}&lng=${encodeURIComponent(target.lng)}&radius=8`;
+      const response = await fetch(url);
+      const data = await response.json();
+      const hospitals = Array.isArray(data?.hospitals) ? data.hospitals : [];
+      return hospitals.length ? hospitals[0] : null;
+    } catch (error) {
+      console.warn('Hospital lookup failed:', error);
+      return null;
+    }
+  }
 
   // STATUS TOGGLE
   let isAvailable = true;
   let currentDispatch = null;
+  let missionAccepted = false;
+  let recentlyCompletedSosId = null;
+  let recentlyCompletedUntil = 0;
+  let gpsWatchId = null;
+  let driverLocationSyncInterval = null;
 
-  function applyDispatchToMission(call) {
+  function isAcceptedDispatchStatus(status) {
+    const value = String(status || '').toLowerCase();
+    return ['enroute', 'hospital_assigned', 'patient_picked', 'to_hospital', 'in_transit', 'arrived'].includes(value);
+  }
+
+  function renderMissionActions() {
+    const missionActionsEl = document.getElementById('missionActions');
+    if (!missionActionsEl) return;
+    const statusLower = String(currentDispatch?.status || '').toLowerCase();
+    const hospitalTransferActive = routePhase === 'to_hospital'
+      || ['hospital_assigned', 'patient_picked', 'to_hospital', 'in_transit', 'arrived'].includes(statusLower);
+
+    if (!currentDispatch) {
+      if (hasActiveRecentlyCompletedLock()) {
+        missionActionsEl.innerHTML =
+          `<button class="btn-accept" style="opacity:.7;cursor:not-allowed;" disabled>🏁 MISSION COMPLETED</button>
+           <button class="btn-decline" style="opacity:.7;cursor:not-allowed;" disabled>⏳ WAITING FOR NEW SOS</button>`;
+        return;
+      }
+      missionActionsEl.innerHTML =
+        `<button class="btn-accept" onclick="openAcceptModal()">✓ ACCEPT MISSION</button>
+         <button class="btn-decline" onclick="declineMission()">✕</button>`;
+      return;
+    }
+
+    if (missionAccepted || isAcceptedDispatchStatus(statusLower)) {
+      if (hospitalTransferActive) {
+        missionActionsEl.innerHTML =
+          `<button class="btn-accept" style="background:linear-gradient(135deg,#0369a1,#0284c7);" onclick="markEmergencyComplete()">🏁 MARK COMPLETE</button>
+           <button class="btn-decline" onclick="rerouteHospitalRoute()">🏥 REROUTE TO HOSPITAL</button>`;
+      } else {
+        missionActionsEl.innerHTML =
+          `<button class="btn-accept" style="background:linear-gradient(135deg,#0369a1,#0284c7);" onclick="markEmergencyComplete()">🏁 MARK COMPLETE</button>
+           <button class="btn-decline" onclick="markPatientPicked()">📍 PATIENT PICKED</button>`;
+      }
+      return;
+    }
+
+    missionActionsEl.innerHTML =
+      `<button class="btn-accept" onclick="openAcceptModal()">✓ ACCEPT MISSION</button>
+       <button class="btn-decline" onclick="declineMission()">✕</button>`;
+  }
+
+  async function applyDispatchToMission(call) {
     if (!call || !call.sosId) return;
-    currentDispatch = call;
+    const sameMission = currentDispatch && currentDispatch.sosId === call.sosId;
+    if (!sameMission) {
+      missionAccepted = false;
+    }
+    const patientTarget = call.patientLocation || call.location || null;
+    const incomingStatus = String(call.status || currentDispatch?.status || 'assigned').toLowerCase();
+    const resolvedStatus = sameMission && missionAccepted
+      ? (isAcceptedDispatchStatus(incomingStatus) ? incomingStatus : String(currentDispatch?.status || 'enroute').toLowerCase())
+      : incomingStatus;
+    const hospitalTransferActive = hospitalRouteLocked
+      || ['hospital_assigned', 'patient_picked', 'to_hospital', 'in_transit', 'arrived'].includes(resolvedStatus);
+    currentDispatch = {
+      ...call,
+      patientLocation: patientTarget,
+      assignedHospital: call.assignedHospital || call.hospital || null,
+      status: resolvedStatus
+    };
 
-    const target = call.location && typeof call.location.lat === 'number' && typeof call.location.lng === 'number'
-      ? call.location
+    const target = patientTarget && typeof patientTarget.lat === 'number' && typeof patientTarget.lng === 'number'
+      ? patientTarget
       : fallbackDestination;
 
     document.getElementById('missionIcon').textContent = '🚨';
@@ -631,17 +1263,54 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
     document.getElementById('patientLoc').textContent = 'Live SOS location received';
     document.getElementById('patientCoords').textContent = `${target.lat.toFixed(4)}°N, ${target.lng.toFixed(4)}°E`;
-    document.getElementById('patientName').textContent = 'Citizen SOS Request';
-    document.getElementById('patientBlood').textContent = 'Medical profile available';
-    document.getElementById('assignedHosp').textContent = call.hospital || 'Civil Hospital, Nashik';
-    document.getElementById('etaHospName').textContent = call.hospital || 'Civil Hospital, Nashik';
+    const patientName = isGenericCitizenLabel(call.citizenName)
+      ? String(call.requesterName || call.initiatedBy?.name || call.patientName || 'Citizen SOS Request').trim()
+      : String(call.citizenName || call.patientName || 'Citizen SOS Request').trim();
+    const bloodGroup = String(call.medicalSnapshot?.bloodGroup || call.bloodGroup || '').trim();
+    const allergies = Array.isArray(call.medicalSnapshot?.allergies)
+      ? call.medicalSnapshot.allergies.map((item) => String(item || '').trim()).filter(Boolean)
+      : [];
+    const allergyLine = allergies.length ? `${allergies.slice(0, 2).join(', ')} allergy` : 'No known allergy';
+
+    document.getElementById('patientName').textContent = patientName;
+    document.getElementById('patientBlood').textContent = bloodGroup
+      ? `${bloodGroup} · ${allergyLine}`
+      : (allergyLine || 'Medical profile available');
+    const routeOrigin = getEffectiveRouteOrigin();
+    const haversineDistance = haversineKm(routeOrigin, target);
+    document.getElementById('aiAssignmentLine').textContent = `98.4% Match · Haversine: ${haversineDistance.toFixed(1)} km`;
+    document.getElementById('aiRouteLine').textContent = hospitalTransferActive
+      ? 'A* Route: Patient pickup point → Assigned hospital'
+      : 'A* Route: Calculating in Mumbai · CRITICAL Priority';
+    document.getElementById('modalDistance').textContent = `${haversineDistance.toFixed(1)} km — Haversine ✓`;
+    syncConfirmModalDetails(call, haversineDistance);
+
+    const nearestHospital = currentDispatch.assignedHospital || await resolveNearestHospital(target);
+    currentDispatch.assignedHospital = nearestHospital;
+    const hospitalName = nearestHospital?.name || 'Nearest Mumbai Hospital';
+    const icuBeds = nearestHospital?.facilities?.icuBeds;
+    const hospMeta = typeof icuBeds === 'number'
+      ? `${icuBeds} ICU beds · ${nearestHospital?.type || 'Emergency'} ready`
+      : 'ICU status syncing from Mumbai hospital network';
+
+    document.getElementById('assignedHosp').textContent = hospitalName;
+    const etaHospNameEl = document.getElementById('etaHospName');
+    if (etaHospNameEl) etaHospNameEl.textContent = hospitalName;
+    document.getElementById('modalHospital').textContent = hospitalName;
+    document.getElementById('assignedHospMeta').textContent = hospMeta;
     document.getElementById('modalType').textContent = (call.emergencyType || 'EMERGENCY').toUpperCase();
 
-    document.getElementById('missionActions').innerHTML =
-      `<button class="btn-accept" onclick="openAcceptModal()">✓ ACCEPT MISSION</button>
-       <button class="btn-decline" onclick="declineMission()">✕</button>`;
+    renderMissionActions();
 
-    renderGoogleRoute(driverCurrentLocation, target);
+    const hospitalLocation = nearestHospital?.location || null;
+    if (hospitalTransferActive && hospitalLocation && typeof hospitalLocation.lat === 'number' && typeof hospitalLocation.lng === 'number') {
+      hospitalRouteLocked = true;
+      routePhase = 'to_hospital';
+      renderGoogleRoute(target, target, hospitalLocation);
+    } else if (!hospitalRouteLocked) {
+      routePhase = 'to_patient';
+      renderGoogleRoute(routeOrigin, target, hospitalLocation);
+    }
     showToast('📲 New SOS assigned by dispatch');
   }
   function toggleStatus() {
@@ -651,12 +1320,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     pill.className = 'status-pill ' + (isAvailable ? 'available' : 'busy');
     label.textContent = isAvailable ? 'AVAILABLE' : 'BUSY';
     if (dispatchSocket && dispatchSocket.connected) {
-      dispatchSocket.emit('driver-register', {
-        driverId: 'DRV-8204',
-        name: 'Rajesh Kumar',
-        vehicle: 'MH-15-AB-4821',
-        isAvailable
-      });
+      dispatchSocket.emit('driver-register', getDispatchDriverPayload());
     }
     showToast(isAvailable ? '🟢 Status: Available' : '🔴 Status: Busy');
   }
@@ -703,10 +1367,20 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   });
 
   function confirmAccept() {
+    if (!currentDispatch || !currentDispatch.sosId) {
+      showToast('No active dispatch to accept');
+      return;
+    }
+    if (missionAccepted) {
+      showToast('✅ Mission already accepted');
+      closeAcceptModal();
+      return;
+    }
+
+    missionAccepted = true;
+    currentDispatch.status = 'enroute';
     closeAcceptModal();
-    document.getElementById('missionActions').innerHTML =
-      `<button class="btn-accept" style="background:linear-gradient(135deg,#0369a1,#0284c7);" onclick="showToast('🏁 Mission marked complete')">🏁 MARK COMPLETE</button>
-       <button class="btn-decline" onclick="showToast('📍 Arrived at patient')">📍 Arrived</button>`;
+    renderMissionActions();
     document.getElementById('statusPill').className = 'status-pill busy';
     document.getElementById('statusLabel').textContent = 'BUSY';
     isAvailable = false;
@@ -715,22 +1389,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       if (dispatchSocket && dispatchSocket.connected) {
         dispatchSocket.emit('driver-accept-dispatch', {
           sosId: currentDispatch.sosId,
-          driverName: 'Rajesh Kumar',
-          vehicle: 'MH-15-AB-4821'
+          driverId: currentDriverProfile?.id || currentDriverProfile?.driverId || null,
+          driverName: currentDriverProfile?.name || 'Ambulance Driver',
+          vehicle: currentDriverProfile?.ambulanceId || 'A-UNIT'
         });
       }
 
       // Legacy same-browser fallback.
       localStorage.setItem('jc_dispatch_accept', JSON.stringify({
         sosId: currentDispatch.sosId,
-        driverName: 'Rajesh Kumar',
-        vehicle: 'MH-15-AB-4821',
+        driverName: currentDriverProfile?.name || 'Ambulance Driver',
+        vehicle: currentDriverProfile?.ambulanceId || 'A-UNIT',
         acceptedAt: Date.now()
       }));
     }
 
     // Initialize map immediately and start navigation tracking
     setTimeout(() => {
+      navigationStarted = true;
+      setNavigationMapVisible(true);
       startGoogleNavigation();
     }, 300);
     showToast('🚑 Mission confirmed — Navigation started!');
@@ -738,16 +1415,128 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     setTimeout(() => showToast('🟢 Green corridor fully activated — 3 signals cleared'), 6500);
   }
 
+  async function rerouteHospitalRoute(showToastMessage = true) {
+    if (!currentDispatch) {
+      if (showToastMessage) showToast('No active mission to route');
+      return false;
+    }
+
+    const patientLocation = currentDispatch.patientLocation || currentDispatch.location || fallbackDestination;
+    let hospitalLocation = currentDispatch?.assignedHospital?.location || getCurrentHospitalLocation();
+
+    if (!hospitalLocation || typeof hospitalLocation.lat !== 'number' || typeof hospitalLocation.lng !== 'number') {
+      const nearestHospital = await resolveNearestHospital(patientLocation);
+      if (nearestHospital?.location && typeof nearestHospital.location.lat === 'number' && typeof nearestHospital.location.lng === 'number') {
+        currentDispatch.assignedHospital = nearestHospital;
+        hospitalLocation = nearestHospital.location;
+        const hospitalName = nearestHospital.name || 'Assigned Hospital';
+        document.getElementById('assignedHosp').textContent = hospitalName;
+        const etaHospNameEl = document.getElementById('etaHospName');
+        if (etaHospNameEl) etaHospNameEl.textContent = hospitalName;
+        document.getElementById('modalHospital').textContent = hospitalName;
+      }
+    }
+
+    if (!hospitalLocation || typeof hospitalLocation.lat !== 'number' || typeof hospitalLocation.lng !== 'number') {
+      if (showToastMessage) showToast('🏥 Waiting for hospital assignment...');
+      return false;
+    }
+
+    missionAccepted = true;
+    navigationStarted = true;
+    setNavigationMapVisible(true);
+    hospitalRouteLocked = true;
+    currentDispatch.status = 'hospital_assigned';
+    routePhase = 'to_hospital';
+    lastSyncRenderKey = null;
+    renderGoogleRoute(patientLocation, patientLocation, hospitalLocation);
+    renderMissionActions();
+    if (showToastMessage) showToast('🏥 Rerouting to hospital now');
+    return true;
+  }
+
+  async function markPatientPicked() {
+    if (!currentDispatch || !currentDispatch.sosId) {
+      showToast('No active mission to update');
+      return;
+    }
+
+    const patientLocation = currentDispatch.patientLocation || currentDispatch.location || fallbackDestination;
+    if (dispatchSocket && dispatchSocket.connected) {
+      dispatchSocket.emit('driver-patient-picked', {
+        sosId: currentDispatch.sosId,
+        driverId: currentDriverProfile?.driverId || currentDriverProfile?.id || null,
+        patientLocation,
+        emergencyType: currentDispatch.emergencyType || 'Emergency'
+      });
+    }
+
+    missionAccepted = true;
+    currentDispatch.status = 'patient_picked';
+    routePhase = 'to_hospital';
+    renderMissionActions();
+
+    await rerouteHospitalRoute(false);
+
+    showToast('📍 Patient picked up. Selecting hospital...');
+  }
+
+  function markEmergencyComplete() {
+    if (!currentDispatch || !currentDispatch.sosId) {
+      showToast('No active mission to complete');
+      return;
+    }
+
+    const completedSosId = currentDispatch.sosId;
+
+    if (dispatchSocket && dispatchSocket.connected) {
+      dispatchSocket.emit('driver-emergency-completed', {
+        sosId: currentDispatch.sosId,
+        driverId: currentDriverProfile?.driverId || currentDriverProfile?.id || null
+      });
+    }
+
+    isAvailable = true;
+    document.getElementById('statusPill').className = 'status-pill available';
+    document.getElementById('statusLabel').textContent = 'AVAILABLE';
+    missionAccepted = false;
+    navigationStarted = false;
+    setNavigationMapVisible(false);
+    hospitalRouteLocked = false;
+    lastSyncRenderKey = null;
+    routePhase = 'to_patient';
+    currentDispatch = null;
+    clearAcceptedDispatchMarker();
+    markRecentlyCompletedSos(completedSosId);
+    renderMissionActions();
+    showToast('🏁 Mission completed and ambulance released');
+  }
+
   function declineMission() {
+    missionAccepted = false;
+    navigationStarted = false;
+    setNavigationMapVisible(false);
+    hospitalRouteLocked = false;
+    lastSyncRenderKey = null;
     showToast('❌ Mission declined — reassigning to next unit...');
+
+    if (currentDispatch && currentDispatch.sosId && dispatchSocket && dispatchSocket.connected) {
+      dispatchSocket.emit('driver-decline-dispatch', {
+        sosId: currentDispatch.sosId,
+        driverId: currentDriverProfile?.id || currentDriverProfile?.driverId || null,
+        driverName: currentDriverProfile?.name || 'Ambulance Driver',
+        vehicle: currentDriverProfile?.ambulanceId || 'A-UNIT'
+      });
+    }
+
     setTimeout(() => showToast('🔄 Call reassigned to DRV-5103'), 2000);
   }
 
   // SIMULATE NEW CALL
   const callTypes = [
-    { icon:'🚗', type:'ROAD ACCIDENT', priority:'critical', badge:'CRITICAL', id:'JC-2024-0848', loc:'Nashik-Pune Hwy, Km 14', patient:'Rahul Patil, 35M', blood:'O+ · No known allergies', hosp:'Wockhardt Hospital' },
-    { icon:'🧠', type:'STROKE', priority:'critical', badge:'CRITICAL', id:'JC-2024-0849', loc:'Near Panchavati, Nashik', patient:'Sunita Devi, 62F', blood:'A+ · Warfarin medication', hosp:'Civil Hospital, Nashik' },
-    { icon:'🤕', type:'TRAUMA INJURY', priority:'medium', badge:'MEDIUM', id:'JC-2024-0850', loc:'CIDCO Colony, Nashik', patient:'Mohit Shah, 19M', blood:'B- · Latex allergy', hosp:'District Hospital' },
+    { icon:'🚗', type:'ROAD ACCIDENT', priority:'critical', badge:'CRITICAL', id:'JC-2026-0901', loc:'Eastern Express Highway, Sion', patient:'Rahul Patil, 35M', blood:'O+ · No known allergies', hosp:'KEM Hospital' },
+    { icon:'🧠', type:'STROKE', priority:'critical', badge:'CRITICAL', id:'JC-2026-0902', loc:'Near Dadar TT Circle, Dadar', patient:'Sunita Devi, 62F', blood:'A+ · Warfarin medication', hosp:'Sion Hospital' },
+    { icon:'🤕', type:'TRAUMA INJURY', priority:'medium', badge:'MEDIUM', id:'JC-2026-0903', loc:'Wadala Depot Junction', patient:'Mohit Shah, 19M', blood:'B- · Latex allergy', hosp:'Lilavati Hospital' },
   ];
   let callIdx = 0;
   function simulateNewCall() {
@@ -773,12 +1562,28 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     document.getElementById('patientCoords').textContent = `${sampleTarget.lat.toFixed(4)}°N, ${sampleTarget.lng.toFixed(4)}°E`;
     document.getElementById('patientName').textContent = c.patient;
     document.getElementById('patientBlood').textContent = c.blood;
+    const demoDistance = haversineKm(driverCurrentLocation, sampleTarget);
+    document.getElementById('aiAssignmentLine').textContent = `98.2% Match · Haversine: ${demoDistance.toFixed(1)} km`;
+    document.getElementById('aiRouteLine').textContent = 'A* Route: Calculating in Mumbai · ' + c.badge + ' Priority';
+    document.getElementById('modalDistance').textContent = `${demoDistance.toFixed(1)} km — Haversine ✓`;
     document.getElementById('assignedHosp').textContent = c.hosp;
-    document.getElementById('etaHospName').textContent = c.hosp;
+    document.getElementById('assignedHospMeta').textContent = 'ICU status syncing from Mumbai hospital network';
+    const etaHospNameEl = document.getElementById('etaHospName');
+    if (etaHospNameEl) etaHospNameEl.textContent = c.hosp;
+    document.getElementById('modalHospital').textContent = c.hosp;
     document.getElementById('modalType').textContent = c.type;
+    const modalPatient = document.getElementById('modalPatient');
+    const modalBlood = document.getElementById('modalBlood');
+    const modalAllergy = document.getElementById('modalAllergy');
+    const modalConfidence = document.getElementById('modalConfidence');
+    if (modalPatient) modalPatient.textContent = c.patient;
+    if (modalBlood) modalBlood.textContent = c.blood.split('·')[0].trim() || 'Unknown';
+    if (modalAllergy) modalAllergy.textContent = c.blood.includes('·') ? c.blood.split('·').slice(1).join('·').trim() : 'Not reported';
+    if (modalConfidence) modalConfidence.textContent = '98.2% match';
     document.getElementById('missionActions').innerHTML =
       `<button class="btn-accept" onclick="openAcceptModal()">✓ ACCEPT MISSION</button>
        <button class="btn-decline" onclick="declineMission()">✕</button>`;
+    routePhase = 'to_patient';
     etaMins = 4;
     console.log('📞 New SOS Call - Distance:', Math.sqrt(Math.pow(sampleTarget.lat - driverCurrentLocation.lat, 2) + Math.pow(sampleTarget.lng - driverCurrentLocation.lng, 2)) * 111, 'km');
     renderGoogleRoute(driverCurrentLocation, sampleTarget);
@@ -786,10 +1591,74 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   }
 
   function getCurrentDestination() {
-    if (currentDispatch && currentDispatch.location && typeof currentDispatch.location.lat === 'number' && typeof currentDispatch.location.lng === 'number') {
-      return currentDispatch.location;
+    const patientLocation = currentDispatch?.patientLocation || currentDispatch?.location;
+    if (patientLocation && typeof patientLocation.lat === 'number' && typeof patientLocation.lng === 'number') {
+      return patientLocation;
     }
     return fallbackDestination;
+  }
+
+  function getCurrentHospitalLocation() {
+    const hospital = currentDispatch?.assignedHospital || currentDispatch?.hospital;
+    if (hospital && hospital.location && typeof hospital.location.lat === 'number' && typeof hospital.location.lng === 'number') {
+      return hospital.location;
+    }
+    return null;
+  }
+
+  function getDriverLocationLabel() {
+    return 'Driver DB location';
+  }
+
+  function getPatientLocationLabel() {
+    const patientPoint = currentDispatch?.patientLocation || currentDispatch?.location || null;
+    return String(
+      patientPoint?.label
+      || patientPoint?.locationName
+      || patientPoint?.address
+      || currentDispatch?.patientAddress
+      || 'Patient SOS location'
+    ).trim();
+  }
+
+  function getHospitalLocationLabel() {
+    const hospital = currentDispatch?.assignedHospital || currentDispatch?.hospital || null;
+    return String(
+      hospital?.name
+      || hospital?.location?.address
+      || hospital?.address
+      || 'Assigned hospital location'
+    ).trim();
+  }
+
+  function formatCoords(point) {
+    if (!point || typeof point.lat !== 'number' || typeof point.lng !== 'number') return 'N/A';
+    return `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
+  }
+
+  function updateRouteEndpointDisplay(origin, destination, hospital) {
+    const gmStartInputEl = document.getElementById('gmStartInput');
+    const gmEndInputEl = document.getElementById('gmEndInput');
+    const navSubEl = document.getElementById('googleNavSub');
+    const isHospitalRoute = routePhase === 'to_hospital' && hospital
+      && typeof hospital.lat === 'number' && typeof hospital.lng === 'number';
+    const startLabel = isHospitalRoute ? getPatientLocationLabel() : getDriverLocationLabel();
+    const endLabel = isHospitalRoute ? getHospitalLocationLabel() : getPatientLocationLabel();
+    const endPoint = isHospitalRoute ? hospital : destination;
+    const startText = `${startLabel} (${formatCoords(origin)})`;
+    const endText = `${endLabel} (${formatCoords(endPoint)})`;
+
+    if (gmStartInputEl) {
+      gmStartInputEl.value = startText;
+    }
+    if (gmEndInputEl) {
+      gmEndInputEl.value = endText;
+    }
+    if (navSubEl) {
+      navSubEl.textContent = isHospitalRoute
+        ? 'Start from patient SOS · End at assigned hospital'
+        : 'Start from driver DB · End from patient SOS';
+    }
   }
 
   let googleMap = null;
@@ -797,16 +1666,177 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   let directionsRenderer = null;
   let driverMarker = null;
   let patientMarker = null;
+  let hospitalMarker = null;
+  let fallbackPolyline = null;
+  let visibleRoutePolyline = null;
+  let alternateRoutePolylines = [];
   let arrowMarkers = [];
+  let trafficLayer = null;
+  const SHOW_TRAFFIC_OVERLAY = false;
+  const USE_EMBEDDED_GOOGLE_ROUTE_VIEW = true;
+  let lastEmbeddedRouteKey = '';
+  let lastEmbeddedRouteAt = 0;
+  let lastRouteRequestSignature = '';
+  let lastRouteRequestAt = 0;
   let currentRouteStatus = 'clear'; // clear, moderate, heavy
+  let routePhase = 'to_patient'; // to_patient | to_hospital
+  let hospitalRouteLocked = false;
+  let navigationStarted = false;
+  let lastSyncRenderKey = '';
+
+  function setNavigationMapVisible(visible) {
+    const mapBox = document.getElementById('googleMapsContainer');
+    const summary = document.getElementById('routeSummaryPanel');
+    const note = document.getElementById('navLockNote');
+    const refreshBtn = document.querySelector('.google-nav-btn');
+    if (mapBox) mapBox.style.display = visible ? 'block' : 'none';
+    if (summary) summary.style.display = visible ? 'block' : 'none';
+    if (note) note.classList.toggle('show', !visible);
+    if (refreshBtn) refreshBtn.style.display = visible ? 'inline-block' : 'none';
+  }
+
+  function renderEmbeddedGoogleRoute(origin, destination, hospital) {
+    const mapContainer = document.getElementById('googleMap');
+    const spinner = document.getElementById('mapLoadingSpinner');
+    if (spinner) spinner.style.display = 'none';
+    if (!mapContainer || !origin || !destination) return;
+
+    const isHospitalRoute = routePhase === 'to_hospital' && hospital
+      && typeof hospital.lat === 'number' && typeof hospital.lng === 'number';
+    const routeOrigin = origin;
+    const routeDestination = isHospitalRoute ? hospital : destination;
+
+    const originStr = `${routeOrigin.lat},${routeOrigin.lng}`;
+    const destinationStr = `${routeDestination.lat},${routeDestination.lng}`;
+    const embedUrl = `https://www.google.com/maps?output=embed&saddr=${encodeURIComponent(originStr)}&daddr=${encodeURIComponent(destinationStr)}&dirflg=d`;
+    const routeKey = `${routePhase}:${routeOrigin.lat.toFixed(3)},${routeOrigin.lng.toFixed(3)}->${routeDestination.lat.toFixed(5)},${routeDestination.lng.toFixed(5)}`;
+    const now = Date.now();
+    if (routeKey === lastEmbeddedRouteKey && (now - lastEmbeddedRouteAt) < 15000) {
+      return;
+    }
+    lastEmbeddedRouteKey = routeKey;
+    lastEmbeddedRouteAt = now;
+
+    mapContainer.innerHTML = '';
+    mapContainer.style.background = '#e8eef5';
+    mapContainer.style.display = 'block';
+
+    const frame = document.createElement('iframe');
+    frame.src = embedUrl;
+    frame.width = '100%';
+    frame.height = '100%';
+    frame.style.border = '0';
+    frame.loading = 'eager';
+    frame.referrerPolicy = 'no-referrer-when-downgrade';
+    frame.allowFullscreen = true;
+    mapContainer.appendChild(frame);
+
+    const aiRouteLine = document.getElementById('aiRouteLine');
+    const modalRoute = document.getElementById('modalRoute');
+    const routeDistanceEl = document.getElementById('routeDistance');
+    const routeEtaEl = document.getElementById('routeETA');
+    const routeSpeedEl = document.getElementById('routeSpeed');
+    const phaseText = isHospitalRoute ? 'Patient → Hospital' : 'Ambulance → Patient';
+    const km = haversineKm(routeOrigin, routeDestination);
+    const etaMin = Math.max(1, Math.round((km / 22) * 60));
+    const speed = km > 0.1 ? Math.max(12, Math.round(km / (etaMin / 60))) : 12;
+
+    if (routeDistanceEl) routeDistanceEl.textContent = km < 0.1 ? '< 0.1 km' : `${km.toFixed(1)} km`;
+    if (routeEtaEl) routeEtaEl.textContent = `${etaMin} min`;
+    if (routeSpeedEl) routeSpeedEl.textContent = `${speed} km/h`;
+    if (aiRouteLine) aiRouteLine.textContent = `Google Route: ${phaseText}`;
+    if (modalRoute) modalRoute.textContent = `${phaseText} · Live Google route`;
+  }
+
+  window.__showDriverMapFallback = function showDriverMapFallback(reason) {
+    const mapContainer = document.getElementById('googleMap');
+    const spinner = document.getElementById('mapLoadingSpinner');
+    if (spinner) spinner.style.display = 'none';
+    if (!mapContainer) return;
+
+    mapContainer.innerHTML = '';
+    mapContainer.style.background = 'linear-gradient(135deg,#e0f2fe 0%,#dbeafe 100%)';
+    mapContainer.style.display = 'flex';
+    mapContainer.style.alignItems = 'center';
+    mapContainer.style.justifyContent = 'center';
+
+    const panel = document.createElement('div');
+    panel.style.maxWidth = '360px';
+    panel.style.padding = '14px 16px';
+    panel.style.border = '1px solid rgba(2,132,199,0.2)';
+    panel.style.borderRadius = '12px';
+    panel.style.background = 'rgba(255,255,255,0.92)';
+    panel.style.color = '#0f172a';
+    panel.style.fontSize = '13px';
+    panel.style.lineHeight = '1.5';
+    panel.innerHTML = `<strong>Map fallback active</strong><br>${reason || 'Google Maps unavailable'}<br>Routing will continue using assignment distance and dispatch updates.`;
+    mapContainer.appendChild(panel);
+  };
+
+  function isGoogleMapsReady() {
+    return !window.__googleMapsAuthFailed && !!(window.google && window.google.maps);
+  }
+
+  function tryInitializeDriverMap(reason) {
+    if (googleMap || window.__googleMapsAuthFailed) return;
+    if (!isGoogleMapsReady()) return;
+    initializeGoogleMap();
+    if (googleMap) {
+      console.log('Driver map initialized from:', reason || 'unknown');
+    }
+  }
+
+  window.__tryInitializeDriverMap = tryInitializeDriverMap;
+
+  function normalizeAllergyText(value) {
+    if (Array.isArray(value)) {
+      const clean = value.map((item) => String(item || '').trim()).filter(Boolean);
+      return clean.length ? clean.slice(0, 3).join(', ') : 'Not reported';
+    }
+    const text = String(value || '').trim();
+    return text || 'Not reported';
+  }
+
+  function syncConfirmModalDetails(call, distanceKm) {
+    const modalPatient = document.getElementById('modalPatient');
+    const modalRequester = document.getElementById('modalRequester');
+    const modalBlood = document.getElementById('modalBlood');
+    const modalAllergy = document.getElementById('modalAllergy');
+    const modalConfidence = document.getElementById('modalConfidence');
+
+    const patientName = isGenericCitizenLabel(call?.citizenName)
+      ? (call?.requesterName || call?.initiatedBy?.name || call?.patientName || 'Citizen SOS Request')
+      : (call?.citizenName || call?.patientName || 'Citizen SOS Request');
+    const requesterName = String(call?.requesterName || call?.initiatedBy?.name || patientName || 'Citizen SOS Request').trim();
+    const requesterPhone = String(call?.requesterPhone || call?.initiatedBy?.phone || call?.citizenPhone || '').trim();
+    const bloodGroup = call?.medicalSnapshot?.bloodGroup || call?.bloodGroup || 'Unknown';
+    const allergyText = normalizeAllergyText(call?.medicalSnapshot?.allergies || call?.allergies);
+
+    let confidenceText = '98.4% match';
+    const ranked = call?.assignmentBasis?.rankedCandidates;
+    if (Array.isArray(ranked) && ranked.length) {
+      const rankCount = Math.min(ranked.length, 5);
+      const nearest = Number.isFinite(distanceKm) ? `${distanceKm.toFixed(1)} km` : 'N/A';
+      confidenceText = `Nearest of ${rankCount} units · ${nearest}`;
+    }
+
+    if (modalPatient) modalPatient.textContent = patientName;
+    if (modalRequester) {
+      modalRequester.textContent = requesterPhone ? `${requesterName} (${requesterPhone})` : requesterName;
+    }
+    if (modalBlood) modalBlood.textContent = bloodGroup;
+    if (modalAllergy) modalAllergy.textContent = allergyText;
+    if (modalConfidence) modalConfidence.textContent = confidenceText;
+  }
 
   // Create arrows along route to show direction
   function addArrowsToRoute(route) {
     // Clear old arrows
     arrowMarkers.forEach(marker => marker.setMap(null));
     arrowMarkers = [];
-    
-    const steps = route.legs[0].steps;
+
+    const steps = (route.legs || []).flatMap(leg => leg.steps || []);
+    if (!steps.length) return;
     const arrowInterval = Math.max(1, Math.floor(steps.length / 5)); // Show 5 arrows max
     
     steps.forEach((step, idx) => {
@@ -851,12 +1881,24 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
   function initializeGoogleMap() {
     if (googleMap) return;
+    if (window.__googleMapsAuthFailed) {
+      window.__showDriverMapFallback('Google Maps authentication failed');
+      return;
+    }
+    if (!isGoogleMapsReady()) return;
     
     const mapContainer = document.getElementById('googleMap');
     if (!mapContainer) {
       console.warn('Map container not found');
       return;
     }
+
+    // Reset fallback styles/content if a temporary fallback was rendered earlier.
+    mapContainer.innerHTML = '';
+    mapContainer.style.display = 'block';
+    mapContainer.style.background = '';
+    mapContainer.style.alignItems = '';
+    mapContainer.style.justifyContent = '';
     
     googleMap = new google.maps.Map(mapContainer, {
       zoom: 15,
@@ -864,20 +1906,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       mapTypeId: 'roadmap',
       fullscreenControl: true,
       mapTypeControl: true,
-      zoomControl: true,
-      styles: [
-        {
-          featureType: 'poi',
-          stylers: [{ visibility: 'off' }]
-        }
-      ]
+      zoomControl: true
     });
+
+    trafficLayer = new google.maps.TrafficLayer();
+    if (SHOW_TRAFFIC_OVERLAY) {
+      trafficLayer.setMap(googleMap);
+    }
     
     directionsService = new google.maps.DirectionsService();
     directionsRenderer = new google.maps.DirectionsRenderer({
       map: googleMap,
       polylineOptions: {
-        strokeColor: '#059669',
+        strokeColor: '#1a73e8',
         strokeWeight: 7,
         strokeOpacity: 0.95,
         clickable: false
@@ -907,36 +1948,36 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       animation: google.maps.Animation.DROP
     });
     
-    // Patient marker (red)
-    patientMarker = new google.maps.Marker({
-      position: driverCurrentLocation,
-      map: googleMap,
-      icon: {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 10,
-        fillColor: '#dc2626',
-        fillOpacity: 1,
-        strokeColor: '#ffffff',
-        strokeWeight: 3
-      },
-      title: '🆘 Patient Location',
-      label: {
-        text: '🆘',
-        fontSize: '16px'
-      },
-      zIndex: 99,
-      animation: google.maps.Animation.DROP
-    });
-    
     const spinner = document.getElementById('mapLoadingSpinner');
     if (spinner) spinner.style.display = 'none';
   }
 
-  function renderGoogleRoute(origin, destination) {
+  function renderGoogleRoute(origin, destination, hospital) {
     if (!origin || !destination) return;
+
+    updateRouteEndpointDisplay(origin, destination, hospital);
+
+    if (USE_EMBEDDED_GOOGLE_ROUTE_VIEW) {
+      renderEmbeddedGoogleRoute(origin, destination, hospital);
+      return;
+    }
+    if (window.__googleMapsAuthFailed) {
+      window.__showDriverMapFallback('Google Maps authentication failed');
+      return;
+    }
+    if (!isGoogleMapsReady()) {
+      setTimeout(() => renderGoogleRoute(origin, destination, hospital), 500);
+      return;
+    }
     
     console.log('🗺️ renderGoogleRoute called - Origin:', origin, 'Destination:', destination);
     
+    const aiRouteLineEl = document.getElementById('aiRouteLine');
+    const modalRouteEl = document.getElementById('modalRoute');
+    const routeDistanceEl = document.getElementById('routeDistance');
+    const routeEtaEl = document.getElementById('routeETA');
+    const routeSpeedEl = document.getElementById('routeSpeed');
+
     if (!googleMap) {
       console.log('Initializing map...');
       initializeGoogleMap();
@@ -945,9 +1986,24 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     if (!googleMap || !directionsService) {
       console.log('Maps not ready, retrying...');
       showToast('Maps not ready. Retrying...');
-      setTimeout(() => renderGoogleRoute(origin, destination), 500);
+      if (modalRouteEl) modalRouteEl.textContent = 'Maps loading... retrying route in 0.5s';
+      setTimeout(() => renderGoogleRoute(origin, destination, hospital), 500);
       return;
     }
+
+    const routeSignature = `${(currentDispatch?.sosId || currentDispatch?.emergencyId || 'no-sos')}::${origin.lat.toFixed(3)},${origin.lng.toFixed(3)}->${destination.lat.toFixed(5)},${destination.lng.toFixed(5)}`;
+    const now = Date.now();
+    if (routeSignature === lastRouteRequestSignature && (now - lastRouteRequestAt) < 3000) {
+      return;
+    }
+    lastRouteRequestSignature = routeSignature;
+    lastRouteRequestAt = now;
+
+    if (aiRouteLineEl) aiRouteLineEl.textContent = 'A* Route: Initializing maps and traffic...';
+    if (modalRouteEl) modalRouteEl.textContent = 'Routing engine warming up...';
+    if (routeDistanceEl) routeDistanceEl.textContent = '--';
+    if (routeEtaEl) routeEtaEl.textContent = '--';
+    if (routeSpeedEl) routeSpeedEl.textContent = '--';
     
     // Update ambulance marker position
     if (driverMarker && origin) {
@@ -955,29 +2011,281 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       console.log('🚑 Ambulance marker updated');
     }
     
-    // Update patient marker position
-    if (patientMarker && destination) {
-      patientMarker.setPosition(new google.maps.LatLng(destination.lat, destination.lng));
+    const directDistanceKm = haversineKm(origin, destination);
+    const arePointsVeryClose = directDistanceKm < 0.08;
+    const patientMarkerPoint = arePointsVeryClose
+      ? { lat: destination.lat + 0.00055, lng: destination.lng + 0.00055 }
+      : { lat: destination.lat, lng: destination.lng };
+
+    // Update/create patient marker only when a destination is present.
+    if (destination && typeof destination.lat === 'number' && typeof destination.lng === 'number') {
+      if (patientMarker) {
+        patientMarker.setPosition(new google.maps.LatLng(patientMarkerPoint.lat, patientMarkerPoint.lng));
+        patientMarker.setZIndex(150);
+      } else {
+        patientMarker = new google.maps.Marker({
+          position: patientMarkerPoint,
+          map: googleMap,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: '#dc2626',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3
+          },
+          title: '🆘 Patient Location',
+          label: {
+            text: '🆘',
+            fontSize: '16px'
+          },
+          zIndex: 150,
+          animation: google.maps.Animation.DROP
+        });
+      }
       console.log('🆘 Patient marker updated');
+    }
+
+    if (hospitalMarker && hospital && typeof hospital.lat === 'number' && typeof hospital.lng === 'number') {
+      hospitalMarker.setPosition(new google.maps.LatLng(hospital.lat, hospital.lng));
+    } else if (!hospitalMarker && hospital && typeof hospital.lat === 'number' && typeof hospital.lng === 'number') {
+      hospitalMarker = new google.maps.Marker({
+        position: hospital,
+        map: googleMap,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: '#16a34a',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 3
+        },
+        title: '🏥 Hospital Location',
+        label: {
+          text: '🏥',
+          fontSize: '16px'
+        },
+        zIndex: 98,
+        animation: google.maps.Animation.DROP
+      });
     }
     
     const originLatLng = new google.maps.LatLng(origin.lat, origin.lng);
     const destLatLng = new google.maps.LatLng(destination.lat, destination.lng);
+    const hospitalLatLng = hospital && typeof hospital.lat === 'number' && typeof hospital.lng === 'number'
+      ? new google.maps.LatLng(hospital.lat, hospital.lng)
+      : null;
+    if (visibleRoutePolyline) {
+      visibleRoutePolyline.setMap(null);
+      visibleRoutePolyline = null;
+    }
+    alternateRoutePolylines.forEach((polyline) => polyline.setMap(null));
+    alternateRoutePolylines = [];
     
     console.log('📍 Requesting directions...');
+
+    if (fallbackPolyline) {
+      fallbackPolyline.setMap(null);
+      fallbackPolyline = null;
+    }
+
+    // Always draw a provisional visible path immediately so operators never see a blank map.
+    fallbackPolyline = new google.maps.Polyline({
+      map: googleMap,
+      path: arePointsVeryClose
+        ? [
+            originLatLng,
+            new google.maps.LatLng(
+              ((origin.lat + destination.lat) / 2) + 0.00075,
+              ((origin.lng + destination.lng) / 2) - 0.00055
+            ),
+            destLatLng
+          ]
+        : [originLatLng, destLatLng],
+      geodesic: true,
+      strokeColor: '#1a73e8',
+      strokeWeight: 6,
+      strokeOpacity: 0.78,
+      clickable: false,
+      zIndex: 8
+    });
     
-    // Request route with traffic data
-    directionsService.route({
+    // Request route with traffic data and alternatives, then select shortest ETA.
+    const routeRequest = {
       origin: originLatLng,
       destination: destLatLng,
       travelMode: google.maps.TravelMode.DRIVING,
       drivingOptions: {
         departureTime: new Date(),
-        trafficModel: 'best_guess'
+        trafficModel: google.maps.TrafficModel.BEST_GUESS
       },
       unitSystem: google.maps.UnitSystem.METRIC,
-      provideRouteAlternatives: false
-    }, (result, status) => {
+      provideRouteAlternatives: true
+    };
+
+    if (routePhase === 'to_hospital' && hospitalLatLng) {
+      routeRequest.destination = hospitalLatLng;
+    }
+
+    const selectShortestRoute = (routes = []) => {
+      if (!Array.isArray(routes) || !routes.length) return { route: null, index: 0 };
+
+      let bestIndex = 0;
+      let bestDuration = Number.POSITIVE_INFINITY;
+
+      routes.forEach((r, idx) => {
+        const duration = (r.legs || []).reduce((sum, leg) => {
+          return sum + (leg.duration_in_traffic?.value || leg.duration?.value || 0);
+        }, 0);
+        if (duration < bestDuration) {
+          bestDuration = duration;
+          bestIndex = idx;
+        }
+      });
+
+      return { route: routes[bestIndex], index: bestIndex };
+    };
+
+    const renderSimpleDriverPatientFallback = () => {
+      if (!googleMap) return;
+
+      if (directionsRenderer) {
+        directionsRenderer.setMap(null);
+      }
+
+      if (fallbackPolyline) {
+        fallbackPolyline.setMap(null);
+      }
+      alternateRoutePolylines.forEach((polyline) => polyline.setMap(null));
+      alternateRoutePolylines = [];
+
+      fallbackPolyline = new google.maps.Polyline({
+        map: googleMap,
+        path: arePointsVeryClose
+          ? [
+              originLatLng,
+              new google.maps.LatLng(
+                ((origin.lat + destination.lat) / 2) + 0.00075,
+                ((origin.lng + destination.lng) / 2) - 0.00055
+              ),
+              destLatLng
+            ]
+          : [originLatLng, destLatLng],
+        geodesic: true,
+        strokeColor: '#1a73e8',
+        strokeWeight: 6,
+        strokeOpacity: 0.9,
+        clickable: false,
+        zIndex: 9
+      });
+
+      const km = haversineKm(origin, destination);
+      const etaMin = Math.max(1, Math.round((km / 25) * 60));
+      const speed = km > 0.1 ? Math.max(12, Math.round(km / (etaMin / 60))) : 12;
+      const distEl = document.getElementById('routeDistance');
+      const etaEl = document.getElementById('routeETA');
+      const speedEl = document.getElementById('routeSpeed');
+      if (distEl) distEl.textContent = km < 0.1 ? '< 0.1 km' : `${km.toFixed(1)} km`;
+      if (etaEl) etaEl.textContent = `${etaMin} min`;
+      if (speedEl) speedEl.textContent = `${speed} km/h`;
+
+      const aiRouteLine = document.getElementById('aiRouteLine');
+      const modalRoute = document.getElementById('modalRoute');
+      if (aiRouteLine) aiRouteLine.textContent = `Route: Driver (${origin.lat.toFixed(4)}, ${origin.lng.toFixed(4)}) -> Patient (${destination.lat.toFixed(4)}, ${destination.lng.toFixed(4)})`;
+      if (modalRoute) modalRoute.textContent = 'Driver -> Patient (direct line fallback)';
+
+      const bounds = new google.maps.LatLngBounds();
+      bounds.extend(originLatLng);
+      bounds.extend(destLatLng);
+      googleMap.fitBounds(bounds, 80);
+      if (arePointsVeryClose && (googleMap.getZoom() || 0) < 16) {
+        googleMap.setZoom(16);
+      }
+      showToast('Showing driver to patient path');
+    };
+
+    const requestBasicRouteFallback = () => {
+      const basicRequest = {
+        origin: routeRequest.origin,
+        destination: routeRequest.destination,
+        travelMode: google.maps.TravelMode.DRIVING,
+        unitSystem: google.maps.UnitSystem.METRIC,
+        provideRouteAlternatives: true
+      };
+
+      directionsService.route(basicRequest, (fallbackResult, fallbackStatus) => {
+        if (fallbackStatus === google.maps.DirectionsStatus.OK) {
+          const fallbackSelected = selectShortestRoute(fallbackResult.routes || []);
+          const fallbackRoute = fallbackSelected.route;
+          if (!fallbackRoute) {
+            console.error('❌ Fallback returned no route options');
+            return;
+          }
+
+          if (directionsRenderer) {
+            directionsRenderer.setMap(null);
+          }
+
+          directionsRenderer = new google.maps.DirectionsRenderer({
+            map: googleMap,
+            suppressMarkers: true,
+            preserveViewport: false,
+            polylineOptions: {
+              strokeColor: '#1a73e8',
+              strokeWeight: 8,
+              strokeOpacity: 0.95,
+              clickable: false,
+              zIndex: 10
+            }
+          });
+
+          directionsRenderer.setDirections(fallbackResult);
+          directionsRenderer.setRouteIndex(fallbackSelected.index);
+          arrowMarkers.forEach((marker) => marker.setMap(null));
+          arrowMarkers = [];
+
+          if (fallbackPolyline) {
+            fallbackPolyline.setMap(null);
+          }
+          alternateRoutePolylines.forEach((polyline) => polyline.setMap(null));
+          alternateRoutePolylines = [];
+          fallbackPolyline = null;
+
+          const fallbackLegs = fallbackRoute.legs || [];
+          const fallbackDistance = fallbackLegs.reduce((total, item) => total + (item.distance?.value || 0), 0) / 1000;
+          const fallbackDuration = Math.ceil(fallbackLegs.reduce((total, item) => total + (item.duration?.value || 0), 0) / 60);
+          const fallbackSpeed = fallbackDuration > 0 ? Math.round(fallbackDistance / (fallbackDuration / 60)) : 40;
+
+          document.getElementById('routeDistance').textContent = fallbackDistance.toFixed(1) + ' km';
+          document.getElementById('routeETA').textContent = fallbackDuration + ' min';
+          document.getElementById('routeSpeed').textContent = fallbackSpeed + ' km/h';
+
+          const phaseText = routePhase === 'to_hospital' && hospitalLatLng
+            ? 'Patient → Hospital'
+            : 'Ambulance → Patient';
+          const aiRouteLine = document.getElementById('aiRouteLine');
+          const modalRoute = document.getElementById('modalRoute');
+          if (aiRouteLine) aiRouteLine.textContent = `A* Route: ${phaseText} · fallback shortest`; 
+          if (modalRoute) modalRoute.textContent = `${phaseText} · ${fallbackDuration} min`;
+
+          const bounds = new google.maps.LatLngBounds();
+          if (Array.isArray(fallbackRoute.overview_path) && fallbackRoute.overview_path.length) {
+            fallbackRoute.overview_path.forEach((p) => bounds.extend(p));
+          } else {
+            bounds.extend(originLatLng);
+            bounds.extend(destLatLng);
+          }
+          googleMap.fitBounds(bounds, 100);
+          showToast('✅ Route loaded');
+          return;
+        }
+
+        console.error('❌ Directions fallback error:', fallbackStatus);
+        renderSimpleDriverPatientFallback();
+      });
+    };
+
+    directionsService.route(routeRequest, (result, status) => {
       console.log('📡 Directions API Response:', status);
       
       if (status === google.maps.DirectionsStatus.OK) {
@@ -994,7 +2302,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
           suppressMarkers: true,
           preserveViewport: false,
           polylineOptions: {
-            strokeColor: '#059669',
+            strokeColor: '#1a73e8',
             strokeWeight: 8,
             strokeOpacity: 0.95,
             clickable: false,
@@ -1002,8 +2310,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
           }
         });
         
-        const route = result.routes[0];
-        const leg = route.legs[0];
+        const selected = selectShortestRoute(result.routes || []);
+        const route = selected.route;
+        const routeIndex = selected.index;
+        if (!route) {
+          requestBasicRouteFallback();
+          return;
+        }
+        const legs = route.legs || [];
+        const leg = legs[0];
         
         // Check traffic conditions
         let trafficStatus = 'clear';
@@ -1042,15 +2357,44 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
           }
         });
         
-        // Set the route
+        // Set the shortest route
         directionsRenderer.setDirections(result);
+        directionsRenderer.setRouteIndex(routeIndex);
         console.log('🎯 Route rendered with color:', routeColor);
+
+        if (fallbackPolyline) {
+          fallbackPolyline.setMap(null);
+        }
+        alternateRoutePolylines.forEach((polyline) => polyline.setMap(null));
+        alternateRoutePolylines = [];
+        fallbackPolyline = null;
+
+        // Draw alternate routes as lighter traffic-aware paths for operator comparison.
+        (result.routes || []).forEach((candidateRoute, candidateIndex) => {
+          if (candidateIndex === routeIndex) return;
+          const candidatePath = Array.isArray(candidateRoute.overview_path) && candidateRoute.overview_path.length
+            ? candidateRoute.overview_path
+            : null;
+          if (!candidatePath) return;
+
+          const candidatePolyline = new google.maps.Polyline({
+            path: candidatePath,
+            geodesic: true,
+            strokeColor: '#2563eb',
+            strokeOpacity: 0.45,
+            strokeWeight: 5,
+            map: googleMap,
+            clickable: false,
+            zIndex: 7
+          });
+          alternateRoutePolylines.push(candidatePolyline);
+        });
         
-        // Add directional arrows
-        addArrowsToRoute(route);
+        arrowMarkers.forEach((marker) => marker.setMap(null));
+        arrowMarkers = [];
         
-        const distanceValue = leg.distance.value / 1000;
-        const durationValue = Math.ceil(leg.duration_in_traffic ? leg.duration_in_traffic.value / 60 : leg.duration.value / 60);
+        const distanceValue = legs.reduce((total, item) => total + (item.distance?.value || 0), 0) / 1000;
+        const durationValue = Math.ceil(legs.reduce((total, item) => total + (item.duration_in_traffic?.value || item.duration?.value || 0), 0) / 60);
         const speedAvg = durationValue > 0 ? Math.round(distanceValue / (durationValue / 60)) : 45;
         
         // Update UI
@@ -1061,6 +2405,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         if (distEl) distEl.textContent = distanceValue.toFixed(1) + ' km';
         if (etaEl) etaEl.textContent = durationValue + ' min';
         if (speedEl) speedEl.textContent = speedAvg + ' km/h';
+
+        const aiRouteLine = document.getElementById('aiRouteLine');
+        const modalRoute = document.getElementById('modalRoute');
+        const routeText = route?.legs?.[0]?.steps?.[0]?.instructions
+          ? route.legs[0].steps[0].instructions.replace(/<[^>]*>/g, '').slice(0, 45)
+          : 'Mumbai priority route';
+        const phaseText = routePhase === 'to_hospital' && hospitalLatLng
+          ? 'Patient → Hospital'
+          : 'Ambulance → Patient';
+        if (aiRouteLine) aiRouteLine.textContent = `A* Route: ${phaseText} · ${routeText}`;
+        if (modalRoute) modalRoute.textContent = `${phaseText} · ${durationValue} min`;
         
         console.log(`
 🚑 BEST ROUTE CALCULATED
@@ -1077,67 +2432,96 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         
         // Fit map to show entire route
         const bounds = new google.maps.LatLngBounds();
-        bounds.extend(originLatLng);
-        bounds.extend(destLatLng);
-        route.legs.forEach(l => {
-          l.steps.forEach(step => {
-            bounds.extend(step.start_location);
-            bounds.extend(step.end_location);
-          });
-        });
+        if (Array.isArray(route.overview_path) && route.overview_path.length) {
+          route.overview_path.forEach((p) => bounds.extend(p));
+        } else {
+          bounds.extend(originLatLng);
+          bounds.extend(destLatLng);
+          if (routePhase === 'to_hospital' && hospitalLatLng) bounds.extend(hospitalLatLng);
+        }
         googleMap.fitBounds(bounds, 100);
         console.log('🗺️ Map bounds updated');
         
       } else {
         console.error('❌ Directions error:', status);
-        // Fallback: simple line
-        const distanceLat = destination.lat - origin.lat;
-        const distanceLng = destination.lng - origin.lng;
-        const distance = Math.sqrt(distanceLat * distanceLat + distanceLng * distanceLng) * 111;
-        const eta = Math.max(1, Math.round(distance * 2));
-        
-        document.getElementById('routeDistance').textContent = distance.toFixed(1) + ' km';
-        document.getElementById('routeETA').textContent = eta + ' min';
-        document.getElementById('routeSpeed').textContent = '45 km/h';
-        
-        const bounds = new google.maps.LatLngBounds();
-        bounds.extend(originLatLng);
-        bounds.extend(destLatLng);
-        googleMap.fitBounds(bounds);
-        
-        showToast('📡 Using fallback routing');
+        requestBasicRouteFallback();
       }
     });
   }
         
   function openGoogleNavInNewTab() {
+    if (!currentDispatch) {
+      showToast('No active SOS mission yet');
+      return;
+    }
     const destination = getCurrentDestination();
-    const mapsUrl = `https://www.google.com/maps/dir/${driverCurrentLocation.lat},${driverCurrentLocation.lng}/${destination.lat},${destination.lng}?travelmode=driving`;
-    window.open(mapsUrl, '_blank');
+    const routeOrigin = getEffectiveRouteOrigin();
+    updateRouteEndpointDisplay(routeOrigin, destination);
+    routePhase = 'to_patient';
+    renderGoogleRoute({ lat: routeOrigin.lat, lng: routeOrigin.lng }, destination, getCurrentHospitalLocation());
+    showToast('Showing route inside driver dashboard only');
   }
 
   function startGoogleNavigation() {
+    navigationStarted = true;
+    setNavigationMapVisible(true);
+    hospitalRouteLocked = false;
     const destination = getCurrentDestination();
+    const hospital = getCurrentHospitalLocation();
+    routePhase = 'to_patient';
+    initializeGoogleMap();
+    const routeOrigin = getEffectiveRouteOrigin();
+    renderGoogleRoute(routeOrigin, destination, hospital || null);
+    showToast('📍 Routing from driver live location to patient');
+  }
+
+  function getDriverSocketPayload() {
+    return {
+      driverId: currentDriverProfile?.id || currentDriverProfile?._id || currentDriverProfile?.driverId || null,
+      lat: Number(driverCurrentLocation?.lat),
+      lng: Number(driverCurrentLocation?.lng)
+    };
+  }
+
+  function emitDriverLocationUpdate() {
+    if (!dispatchSocket || !dispatchSocket.connected) return;
+    const payload = getDriverSocketPayload();
+    if (!payload.driverId || Number.isNaN(payload.lat) || Number.isNaN(payload.lng)) return;
+    dispatchSocket.emit('location-update', payload);
+  }
+
+  function beginDriverLocationSync() {
+    if (driverLocationSyncInterval) {
+      clearInterval(driverLocationSyncInterval);
+    }
+
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        driverCurrentLocation = {
+      if (gpsWatchId !== null) {
+        navigator.geolocation.clearWatch(gpsWatchId);
+      }
+      gpsWatchId = navigator.geolocation.watchPosition((pos) => {
+        const liveLocation = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude
         };
-        initializeGoogleMap();
-        renderGoogleRoute(driverCurrentLocation, destination);
-        showToast('📍 Location updated');
-      }, (err) => {
-        console.log('Geolocation error:', err);
-        initializeGoogleMap();
-        renderGoogleRoute(driverCurrentLocation, destination);
-        showToast('📍 Using last known location');
-      }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 5000 });
-    } else {
-      initializeGoogleMap();
-      renderGoogleRoute(driverCurrentLocation, destination);
-      showToast('📍 Geolocation unavailable');
+        lastLiveGpsLocation = liveLocation;
+        lastLiveGpsAt = Date.now();
+        gpsSyncState = 'live';
+        driverCurrentLocation = { lat: liveLocation.lat, lng: liveLocation.lng };
+        emitDriverLocationUpdate();
+      }, () => {
+        // Keep DB/fallback location if browser GPS fails.
+        gpsSyncState = 'fallback';
+      }, {
+        enableHighAccuracy: true,
+        maximumAge: 7000,
+        timeout: 10000
+      });
     }
+
+    driverLocationSyncInterval = setInterval(() => {
+      emitDriverLocationUpdate();
+    }, 5000);
   }
 
   // ROUTE SELECTION
@@ -1154,30 +2538,27 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     if (e.key === 'Escape') closeAcceptModal();
   });
 
-  // Cross-dashboard dispatch sync
-  window.addEventListener('storage', (e) => {
-    if (e.key === 'jc_dispatch_call' && e.newValue) {
-      try {
-        const incomingCall = JSON.parse(e.newValue);
-        applyDispatchToMission(incomingCall);
-      } catch (_) {
-        // ignore malformed payload
-      }
-    }
-  });
+  // Cross-tab localStorage mission mirroring is intentionally disabled.
 
-  // Load existing dispatch if dashboard opens after SOS
-  try {
-    const existingDispatch = localStorage.getItem('jc_dispatch_call');
-    if (existingDispatch) {
-      applyDispatchToMission(JSON.parse(existingDispatch));
-    }
-  } catch (_) {
-    // ignore malformed payload
-  }
+  // Initialize driver profile/location from DB before loading map route.
+  (async function bootstrapDriverDashboard() {
+    await initializeDriverContext();
+    await restoreLiveDispatchFromBackend();
 
-  // Initialize route preview at page load.
-  startGoogleNavigation();
+    navigationStarted = Boolean(currentDispatch && missionAccepted);
+    setNavigationMapVisible(Boolean(currentDispatch && missionAccepted));
+
+    setInterval(async () => {
+      if (!currentDriverProfile) return;
+      await restoreLiveDispatchFromBackend();
+    }, 4000);
+
+    beginDriverLocationSync();
+    emitDriverLocationUpdate();
+    if (currentDispatch && missionAccepted) {
+      startGoogleNavigation();
+    }
+  })();
 </script>
 </body>
 </html>

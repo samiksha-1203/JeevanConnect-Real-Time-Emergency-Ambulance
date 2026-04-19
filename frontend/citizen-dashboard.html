@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JeevanConnect — SOS Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Oxanium:wght@300;400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <style>
         :root {
             --cyan: #0284c7; --cyan-bright: #06b6d4;
@@ -37,6 +36,8 @@
         .live-dot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:livePulse 1.2s ease infinite; }
         @keyframes livePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
         .avatar { width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,var(--cyan),#0ea5e9); display:flex; align-items:center; justify-content:center; font-size:15px; cursor:pointer; border:2px solid rgba(2,132,199,0.2); box-shadow:0 2px 8px rgba(2,132,199,0.18); }
+        .logout-btn { border:none; background:white; color:var(--red); border:1px solid rgba(225,29,72,0.2); border-radius:20px; padding:7px 12px; font-size:10px; font-weight:700; letter-spacing:1px; cursor:pointer; transition:all .2s; }
+        .logout-btn:hover { background:#fff1f2; }
 
         .content { flex:1; overflow-y:auto; padding:0 0 90px; }
 
@@ -310,18 +311,26 @@
         .modal-sheet { background:white; border-radius:24px 24px 0 0; border:1px solid rgba(2,132,199,0.1); border-bottom:none; width:100%; max-width:480px; padding:24px 24px 40px; animation:sheetUp 0.3s ease; box-shadow:0 -8px 40px rgba(0,0,0,0.1); }
         @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
         #sosModal { align-items:center; padding:14px; }
-        #sosModal .modal-sheet { border-radius:24px; border-bottom:1px solid rgba(2,132,199,0.1); max-width:430px; width:100%; max-height:86vh; overflow-y:auto; padding:20px 20px 24px; }
+        #sosModal .modal-sheet { border-radius:24px; border-bottom:1px solid rgba(2,132,199,0.1); max-width:520px; width:100%; max-height:94vh; overflow-y:auto; padding:20px 20px 24px; }
         .sheet-handle{width:40px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 20px}
         .sheet-title{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px}
         .sheet-sub{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.5}
-        .emergency-types{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+        .emergency-types{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;max-height:58vh;overflow:auto;padding-right:4px}
         .etype-btn{padding:15px 12px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:14px;cursor:pointer;text-align:center;transition:all 0.2s}
         .etype-btn:hover,.etype-btn.selected{border-color:var(--red);background:rgba(225,29,72,0.05)}
         .etype-icon{font-size:26px;display:block;margin-bottom:6px}
         .etype-label{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;color:var(--text)}
+        .unknown-wrap{display:none;margin:0 0 14px}
+        .unknown-wrap.open{display:block}
+        .unknown-label{display:block;font-size:11px;font-weight:700;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase;margin-bottom:7px}
+        .unknown-input{width:100%;padding:11px 12px;border:1.5px solid #e2e8f0;border-radius:12px;background:#f8fafc;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;resize:vertical;min-height:78px;outline:none;transition:all .2s}
+        .unknown-input:focus{border-color:var(--red);background:white;box-shadow:0 0 0 3px rgba(225,29,72,0.1)}
         .btn-dispatch{width:100%;padding:15px;border:none;border-radius:14px;background:linear-gradient(135deg,#be123c,var(--red));color:white;font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;letter-spacing:2px;cursor:pointer;box-shadow:0 6px 20px rgba(225,29,72,0.32);transition:all 0.2s}
         .btn-dispatch:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(225,29,72,0.42)}
         .btn-sheet-cancel{width:100%;padding:11px;border:none;background:none;color:var(--muted);font-size:14px;cursor:pointer;margin-top:10px}
+        .btn-sheet-close{width:100%;padding:10px 12px;border:1px solid rgba(2,132,199,0.22);background:#f8fbff;color:#0f172a;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px}
+        .btn-sheet-close:hover{background:#eef6ff;border-color:rgba(2,132,199,0.36)}
+        #closeAfterCancelBtn{display:none}
 
         /* SOS STATUS */
         .sos-status{text-align:center;padding:20px 0;margin:10px 0 0}
@@ -360,6 +369,7 @@
         </div>
         <div class="topbar-right">
             <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+            <button class="logout-btn" type="button" onclick="logoutSession()">LOGOUT</button>
             <div class="avatar">👤</div>
         </div>
     </div>
@@ -368,7 +378,7 @@
         <!-- GREETING -->
         <div class="greeting">
             <div class="greeting-time" id="greetTime">GOOD MORNING</div>
-            <div class="greeting-name">Hello, <span id="greetingName">Arjun</span> 👋</div>
+            <div class="greeting-name">Hello, <span id="greetingName">User</span> 👋</div>
         </div>
 
         <!-- LOCATION -->
@@ -383,18 +393,18 @@
 
         <!-- SOS BUTTON -->
         <div class="sos-section">
-            <div class="sos-label">Tap in case of emergency</div>
+            <div class="sos-label">In a life-threatening emergency?</div>
             <div class="sos-ring">
                 <div class="ring-pulse"></div><div class="ring-pulse"></div><div class="ring-pulse"></div>
                 <button class="sos-btn" onclick="openSOS()">
                     <div class="sos-btn-inner">
                         <span class="sos-btn-icon">🚨</span>
                         <span class="sos-btn-text">SOS</span>
-                        <span class="sos-btn-sub">PRESS FOR HELP</span>
+                        <span class="sos-btn-sub">EMERGENCY HELP</span>
                     </div>
                 </button>
             </div>
-            <div class="sos-hint" id="sosHint">Tap to dispatch emergency services</div>
+            <div class="sos-hint" id="sosHint">Don't wait - call for help now</div>
         </div>
 
         <!-- TRACKING CARD -->
@@ -407,10 +417,12 @@
                 <div id="liveMap"></div>
             </div>
             <div class="track-info">
-                <div class="info-row"><span class="info-label">🚗 Vehicle</span><span class="info-value cyan">MH-15-AB-4821</span></div>
-                <div class="info-row"><span class="info-label">👨 Driver</span><span class="info-value">Rajesh Kumar</span></div>
-                <div class="info-row"><span class="info-label">📞 Contact</span><span class="info-value cyan">+91 98765 43210</span></div>
-                <div class="info-row"><span class="info-label">🏥 Hospital</span><span class="info-value green">Civil Hospital, Nashik</span></div>
+                <div class="info-row"><span class="info-label">▶ Start</span><span class="info-value cyan" id="routeStartText">Driver live location</span></div>
+                <div class="info-row"><span class="info-label">■ Stop</span><span class="info-value green" id="routeStopText">Your location</span></div>
+                <div class="info-row"><span class="info-label">🚗 Vehicle</span><span class="info-value cyan" id="trackingVehicle">Waiting...</span></div>
+                <div class="info-row"><span class="info-label">👨 Driver</span><span class="info-value" id="trackingDriver">Waiting...</span></div>
+                <div class="info-row"><span class="info-label">📞 Contact</span><span class="info-value cyan" id="trackingContact">Waiting...</span></div>
+                <div class="info-row"><span class="info-label">🏥 Hospital</span><span class="info-value green" id="trackingHospital">Searching...</span></div>
                 <div class="info-row"><span class="info-label">⏱ ETA</span><span class="info-value amber" id="etaText">7 minutes</span></div>
             </div>
             <div class="cancel-row"><button class="btn-cancel" onclick="cancelSOS()">✕ CANCEL REQUEST</button></div>
@@ -837,10 +849,29 @@
         <div class="sheet-title" id="sosTitle">🚨 Emergency Type</div>
         <div class="sheet-sub" id="sosSub">Select the type of emergency so we can dispatch the right help immediately.</div>
         <div class="emergency-types" id="emergencyTypes">
-            <div class="etype-btn selected" onclick="selectType(this)"><span class="etype-icon">🫀</span><div class="etype-label">Cardiac</div></div>
-            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🚗</span><div class="etype-label">Accident</div></div>
-            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🧠</span><div class="etype-label">Stroke</div></div>
-            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🤕</span><div class="etype-label">Other</div></div>
+            <div class="etype-btn selected" onclick="selectType(this)"><span class="etype-icon">🫀</span><div class="etype-label">Cardiac Arrest / Heart Attack</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🫁</span><div class="etype-label">Breathing Problem</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🩸</span><div class="etype-label">Severe Bleeding</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🤢</span><div class="etype-label">Poisoning / Overdose</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🌡️</span><div class="etype-label">High Fever / Infection</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">⚡</span><div class="etype-label">Seizure / Epilepsy</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🩹</span><div class="etype-label">Burn Injury</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🚧</span><div class="etype-label">Trauma & Injury</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🦴</span><div class="etype-label">Fracture / Broken Bone</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🏍️</span><div class="etype-label">Road Accident (Major)</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🚗</span><div class="etype-label">Road Accident (Minor)</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🧍</span><div class="etype-label">Fall / Head Injury</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🤰</span><div class="etype-label">Pregnancy Emergency / Labor</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">👶</span><div class="etype-label">Child Emergency</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🧑‍🦽</span><div class="etype-label">Critical Condition</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">😵</span><div class="etype-label">Unconscious / Not Responding</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">💢</span><div class="etype-label">Chest Pain (Non-confirmed)</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🔥</span><div class="etype-label">Fire Injury</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">⚠️</span><div class="etype-label">Unknown Emergency</div></div>
+        </div>
+        <div class="unknown-wrap" id="unknownEmergencyWrap">
+            <label class="unknown-label" for="unknownEmergencyDetails">Tell us what happened</label>
+            <textarea id="unknownEmergencyDetails" class="unknown-input" placeholder="Example: Person collapsed after chemical smell, breathing fast, not speaking clearly."></textarea>
         </div>
         <div class="sos-status" id="sosStatus" style="display:none;">
             <div class="status-icon">🚨</div>
@@ -850,13 +881,115 @@
         <div class="countdown-wrap" id="countdownWrap" style="display:none;"><div class="countdown-num" id="countdownNum">3</div><div class="countdown-label">DISPATCHING IN</div></div>
         <button class="btn-dispatch" id="dispatchBtn" onclick="sendSOSRequest()">🚑 SEND SOS REQUEST</button>
         <button class="btn-sheet-cancel" id="cancelBtn" onclick="closeModal()">Cancel</button>
+        <button class="btn-sheet-close" id="closeAfterCancelBtn" onclick="closeModal()">Close</button>
     </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://jeevanconnect-real-time-emergency.onrender.com/socket.io/socket.io.js"></script>
 <script>
-    const API_BASE_URL = window.__API_BASE_URL__ || ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'http://localhost:5000' : 'https://jeevanconnect-real-time-emergency.onrender.com');
+    const API_BASE_URL = window.__API_BASE_URL__ || (() => {
+        try {
+            return localStorage.getItem('apiBaseUrl') || 'http://localhost:5000';
+        } catch (_) {
+            return 'http://localhost:5000';
+        }
+    })();
+    let googleMapsLoadPromise = null;
+    let leafletLoadPromise = null;
+    let googleMapsAuthFailed = false;
+    let currentUserLocation = { lat: 19.9975, lng: 73.7898 }; // Default Nashik
+
+    window.gm_authFailure = function gmAuthFailureCitizenHandler() {
+        googleMapsAuthFailed = true;
+    };
+
+    async function ensureGoogleMapsLoaded() {
+        if (window.google && window.google.maps) return true;
+        if (googleMapsLoadPromise) return googleMapsLoadPromise;
+
+        googleMapsLoadPromise = (async () => {
+            const response = await fetch(`${API_BASE_URL}/api/config?t=${Date.now()}`, { cache: 'no-store' });
+            const data = await response.json();
+            const apiKey = (data && data.googleMapsApiKey ? data.googleMapsApiKey : '').trim();
+            if (!apiKey) {
+                throw new Error('Google Maps API key missing');
+            }
+
+            await new Promise((resolve, reject) => {
+                const existingScript = document.querySelector('script[data-citizen-google-maps="1"]');
+                if (existingScript) {
+                    existingScript.remove();
+                }
+
+                const callbackName = `__citizenGoogleMapsReady_${Date.now()}`;
+                window[callbackName] = () => {
+                    try { delete window[callbackName]; } catch (_) {}
+                    resolve();
+                };
+
+                const script = document.createElement('script');
+                script.dataset.citizenGoogleMaps = '1';
+                script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=geometry&callback=${encodeURIComponent(callbackName)}`;
+                script.async = true;
+                script.defer = true;
+                script.onerror = () => {
+                    try { delete window[callbackName]; } catch (_) {}
+                    reject(new Error('Failed to load Google Maps API'));
+                };
+                document.head.appendChild(script);
+            });
+
+            // Script load can still succeed with an auth/referrer/billing failure.
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            if (googleMapsAuthFailed) {
+                throw new Error('Google Maps authentication failed');
+            }
+
+            return true;
+        })();
+
+        try {
+            return await googleMapsLoadPromise;
+        } catch (error) {
+            googleMapsLoadPromise = null;
+            throw error;
+        }
+    }
+
+    async function ensureLeafletLoaded() {
+        if (window.L && window.L.map) return true;
+        if (leafletLoadPromise) return leafletLoadPromise;
+
+        leafletLoadPromise = (async () => {
+            await new Promise((resolve, reject) => {
+                if (!document.querySelector('link[data-leaflet="1"]')) {
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                    link.dataset.leaflet = '1';
+                    document.head.appendChild(link);
+                }
+
+                if (window.L && window.L.map) {
+                    resolve();
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                script.async = true;
+                script.defer = true;
+                script.onload = resolve;
+                script.onerror = () => reject(new Error('Failed to load Leaflet'));
+                document.head.appendChild(script);
+            });
+
+            return true;
+        })();
+
+        return leafletLoadPromise;
+    }
+
     const hour = new Date().getHours();
     document.getElementById('greetTime').textContent = hour < 12 ? 'GOOD MORNING' : hour < 17 ? 'GOOD AFTERNOON' : 'GOOD EVENING';
     async function reverseGeocode(lat, lng) {
@@ -881,7 +1014,7 @@
         navigator.geolocation.getCurrentPosition(pos => {
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
-            currentUserLocation = { lat, lng }; // Update global location
+            currentUserLocation = { lat, lng };
             reverseGeocode(lat, lng);
             document.getElementById('locAccuracy').textContent = '± ' + Math.round(pos.coords.accuracy) + 'm';
         }, (err) => {
@@ -893,8 +1026,58 @@
         document.getElementById('locValue').textContent = 'Nashik, Maharashtra';
     }
 
-    const storedCitizen = JSON.parse(localStorage.getItem('user') || '{}');
-    const DISPATCH_SERVER_URL = 'https://jeevanconnect-real-time-emergency.onrender.com';
+    function safeReadJson(key) {
+        try {
+            const raw = localStorage.getItem(key);
+            return raw ? JSON.parse(raw) : null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function resolveStoredCitizen() {
+        const fromUser = safeReadJson('user') || {};
+        const fromCitizen = safeReadJson('citizen') || {};
+        const fromProfile = safeReadJson('citizenProfile') || {};
+        const storedDisplayName = String(localStorage.getItem('citizenDisplayName') || '').trim();
+
+        const resolved = {
+            ...fromCitizen,
+            ...fromProfile,
+            ...fromUser
+        };
+
+        if (!resolved.name && storedDisplayName) {
+            resolved.name = storedDisplayName;
+        }
+
+        return resolved;
+    }
+
+    function applyCitizenIdentityToHeader(citizen = {}) {
+        const resolvedName = String(citizen?.name || '').trim();
+
+        if (resolvedName) {
+            document.getElementById('greetingName').textContent = resolvedName.split(' ')[0];
+            document.getElementById('profileName').textContent = resolvedName;
+            document.getElementById('profileAvatar').textContent = resolvedName.charAt(0).toUpperCase();
+            localStorage.setItem('citizenDisplayName', resolvedName);
+        } else {
+            document.getElementById('greetingName').textContent = 'User';
+        }
+
+        document.getElementById('bloodChip').textContent = citizen?.bloodGroup || 'N/A';
+        document.getElementById('bloodGroupValue').textContent = citizen?.bloodGroup || 'N/A';
+        document.getElementById('profileId').textContent = `Phone: +91 ${citizen?.phone || '------'} · ${citizen?.email || 'No email'}`;
+    }
+
+    const storedCitizen = resolveStoredCitizen();
+    const authToken = localStorage.getItem('token') || '';
+    function logoutSession() {
+        ['token', 'user', 'authRole'].forEach(key => localStorage.removeItem(key));
+        window.location.href = 'index.html';
+    }
+    const DISPATCH_SERVER_URL = API_BASE_URL;
     const dispatchSocket = typeof io === 'function' ? io(DISPATCH_SERVER_URL, {
         transports: ['websocket', 'polling'],
         reconnection: true,
@@ -906,6 +1089,25 @@
             dispatchSocket.emit('citizen-register', {
                 userId: storedCitizen.id || storedCitizen.phone || 'citizen-web'
             });
+        });
+
+        dispatchSocket.on('sos-cancelled', ({ sosId }) => {
+            if (!activeSOS || (sosId && activeSOS.sosId !== sosId)) return;
+            clearSOSAsyncTimers();
+            clearInterval(etaInterval);
+            hasLiveDriverFeed = false;
+            lastLiveRouteRefreshAt = 0;
+            activeSOS = null;
+            sosState = 'idle';
+            clearActiveSOSSession();
+            document.getElementById('trackingCard').style.display='none';
+            document.getElementById('sosHint').textContent='Tap to dispatch emergency services';
+            closeModal();
+            showToast('❌ Emergency request cancelled');
+        });
+
+        dispatchSocket.on('sos-cancel-failed', ({ message }) => {
+            showToast(`⚠️ ${message || 'Unable to cancel SOS right now'}`);
         });
 
         dispatchSocket.on('sos-pending', ({ sosId }) => {
@@ -920,8 +1122,25 @@
             clearTimeout(assignTimeout);
             clearTimeout(notifyTimeout);
             sosState = 'assigned';
+            persistActiveSOSSession();
             renderSOSModal();
-            showToast(`✅ ${assignedData.driverName || 'Nearest ambulance'} assigned. Waiting for driver acceptance...`);
+            activeSOS.emergencyId = assignedData.emergencyId || activeSOS.emergencyId || null;
+            const resolvedDriverName = assignedData.driverName || activeSOS.assignedDriver?.name || '';
+            const resolvedVehicle = assignedData.vehicle || activeSOS.assignedDriver?.vehicle || '';
+            const resolvedPhone = assignedData.driverPhone || activeSOS.assignedDriver?.phone || '';
+            activeSOS.assignedDriver = {
+                id: assignedData.driverId || null,
+                name: resolvedDriverName,
+                vehicle: resolvedVehicle,
+                phone: resolvedPhone
+            };
+            activeSOS.driverLocation = assignedData.driverLocation || activeSOS.driverLocation || null;
+            document.getElementById('trackingDriver').textContent = resolvedDriverName || 'Matching nearest DB driver...';
+            document.getElementById('trackingVehicle').textContent = resolvedVehicle || 'Waiting for assignment';
+            document.getElementById('trackingContact').textContent = resolvedPhone || 'Dispatch center';
+            document.getElementById('trackingHospital').textContent = 'Hospital will be assigned after pickup';
+            document.getElementById('statusSub').textContent = 'Ambulance matched. Waiting for driver acceptance.';
+            showToast(`✅ ${(resolvedDriverName || resolvedVehicle || 'Nearest ambulance')} assigned. Waiting for driver acceptance...`);
             notifyDriverAndWaitAcceptance();
         });
 
@@ -929,17 +1148,46 @@
             if (!activeSOS || activeSOS.sosId !== acceptedData.sosId) return;
             handleDriverAccepted(acceptedData);
         });
+
+        dispatchSocket.on('driver-location-update', (locationData) => {
+            if (!activeSOS || !locationData || activeSOS.sosId !== locationData.sosId) return;
+            const lat = Number(locationData.lat);
+            const lng = Number(locationData.lng);
+            if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+            activeSOS.driverLocation = { lat, lng };
+            hasLiveDriverFeed = true;
+
+            if (sosState === 'enroute') {
+                refreshLiveRouteFromDriverLocation(true);
+            }
+        });
+
+        dispatchSocket.on('hospital-assigned', (hospitalData) => {
+            if (!activeSOS || activeSOS.sosId !== hospitalData.sosId) return;
+            const hospitalName = hospitalData.hospital?.name || 'Assigned Hospital';
+            document.getElementById('trackingHospital').textContent = hospitalName;
+            document.getElementById('statusSub').textContent = `Patient picked. ${hospitalName} selected for the emergency.`;
+            showToast(`🏥 ${hospitalName} selected for transport`);
+        });
+
+        dispatchSocket.on('emergency-completed', (doneData) => {
+            if (!activeSOS || activeSOS.sosId !== doneData.sosId) return;
+            document.getElementById('statusSub').textContent = 'Emergency completed. Ambulance returned to service.';
+            showToast('✅ Emergency response completed');
+            clearSOSAsyncTimers();
+            clearInterval(etaInterval);
+            hasLiveDriverFeed = false;
+            lastLiveRouteRefreshAt = 0;
+            activeSOS = null;
+            sosState = 'idle';
+            clearActiveSOSSession();
+            document.getElementById('trackingCard').style.display='none';
+            document.getElementById('sosHint').textContent='Tap to dispatch emergency services';
+        });
     }
 
-    if (storedCitizen.name) {
-        document.getElementById('greetingName').textContent = storedCitizen.name.split(' ')[0];
-        document.getElementById('profileName').textContent = storedCitizen.name;
-        document.getElementById('bloodChip').textContent = storedCitizen.bloodGroup || 'N/A';
-        document.getElementById('bloodGroupValue').textContent = storedCitizen.bloodGroup || 'N/A';
-        const initial = storedCitizen.name.trim().charAt(0).toUpperCase();
-        document.getElementById('profileAvatar').textContent = initial;
-        document.getElementById('profileId').textContent = `Phone: +91 ${storedCitizen.phone || '------'} · ${storedCitizen.email || 'No email'}`;
-    }
+    applyCitizenIdentityToHeader(storedCitizen);
 
     const medicalProfileKey = 'medicalProfile';
     const savedMedicalProfile = JSON.parse(localStorage.getItem(medicalProfileKey) || '{}');
@@ -951,6 +1199,45 @@
         emergencyNote: ''
     };
     let medicalProfile = { ...defaultMedicalProfile, ...savedMedicalProfile };
+
+    async function loadMedicalProfileFromBackend() {
+        if (!authToken) return;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+                headers: {
+                    Authorization: `Bearer ${authToken}`
+                }
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data.success || !data.profile) {
+                return;
+            }
+
+            if (data.profile.name) {
+                storedCitizen.name = data.profile.name;
+                localStorage.setItem('user', JSON.stringify(storedCitizen));
+                localStorage.setItem('citizenDisplayName', data.profile.name);
+            }
+
+            if (data.profile.bloodGroup) {
+                storedCitizen.bloodGroup = data.profile.bloodGroup;
+                localStorage.setItem('user', JSON.stringify(storedCitizen));
+            }
+
+            applyCitizenIdentityToHeader(storedCitizen);
+
+            medicalProfile = {
+                ...defaultMedicalProfile,
+                ...(data.profile.medicalProfile || {})
+            };
+            localStorage.setItem(medicalProfileKey, JSON.stringify(medicalProfile));
+            renderMedicalProfile();
+        } catch (_) {
+            // Keep local values if backend fetch fails.
+        }
+    }
 
     function renderMedicalProfile() {
         document.getElementById('organDonorValue').textContent = medicalProfile.organDonor === 'yes'
@@ -1054,7 +1341,7 @@
         if (value === 'unknown') document.getElementById('organDonorUnknown').classList.add('active');
     }
 
-    function saveMedicalProfile() {
+    async function saveMedicalProfile() {
         const allergies = document.getElementById('allergiesInput').value
             .split(',')
             .map(item => item.trim())
@@ -1078,13 +1365,51 @@
             medications,
             emergencyNote
         };
+
+        console.log('saveMedicalProfile: authToken =', authToken ? 'present' : 'missing');
+        console.log('saveMedicalProfile: medicalProfile =', medicalProfile);
+        
+        let savedToDb = false;
+        if (authToken) {
+            try {
+                console.log('saveMedicalProfile: Sending PUT request to', API_BASE_URL + '/api/auth/profile');
+                const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ medicalProfile })
+                });
+                const data = await response.json();
+                console.log('saveMedicalProfile: Response status:', response.status, 'data:', data);
+                if (!response.ok || !data.success) {
+                    console.log('saveMedicalProfile: Backend returned error or failure');
+                    showToast('❌ Could not save to database. Saved locally.');
+                } else {
+                    savedToDb = true;
+                    console.log('saveMedicalProfile: Successfully saved to database');
+                }
+            } catch (err) {
+                console.error('saveMedicalProfile: Network error:', err);
+                showToast('⚠️ Database not reachable. Saved locally.');
+            }
+        } else {
+            console.log('saveMedicalProfile: No auth token - only saving locally');
+        }
+
         localStorage.setItem(medicalProfileKey, JSON.stringify(medicalProfile));
         renderMedicalProfile();
         closeMedicalEdit();
-        showToast('Medical details updated');
+        if (savedToDb) {
+            showToast('✅ Medical details saved to database');
+        } else {
+            showToast('✅ Medical details updated (local only)');
+        }
     }
 
     renderMedicalProfile();
+    loadMedicalProfileFromBackend();
 
     function showToast(msg) {
         const t = document.getElementById('toast');
@@ -1146,16 +1471,194 @@
     let notifyTimeout = null;
     let driverFallbackTimeout = null;
     let driverPollInterval = null;
+    let dispatchStatusPollInterval = null;
+    const sosSessionKey = 'jeevanconnect_active_sos';
+
+    function persistActiveSOSSession() {
+        if (!activeSOS) return;
+        try {
+            localStorage.setItem(sosSessionKey, JSON.stringify({
+                activeSOS,
+                sosState,
+                updatedAt: Date.now()
+            }));
+        } catch (_) {
+            // ignore storage quota/privacy errors
+        }
+    }
+
+    function clearActiveSOSSession() {
+        try {
+            localStorage.removeItem(sosSessionKey);
+        } catch (_) {
+            // ignore storage errors
+        }
+    }
+
+    async function fetchDriverFallbackFromDb(preferred = {}) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/drivers`);
+            const data = await response.json();
+            const drivers = Array.isArray(data?.drivers) ? data.drivers : [];
+            if (!drivers.length) return null;
+
+            const preferredId = String(preferred.id || '').toLowerCase();
+            const preferredVehicle = String(preferred.vehicle || '').toLowerCase();
+            const preferredName = String(preferred.name || '').toLowerCase();
+
+            const matched = drivers.find((d) => {
+                const keys = [d.id, d.driverId, d.loginId, d.ambulanceId, d.name]
+                    .filter(Boolean)
+                    .map((v) => String(v).toLowerCase());
+                return (
+                    (preferredId && keys.includes(preferredId)) ||
+                    (preferredVehicle && keys.includes(preferredVehicle)) ||
+                    (preferredName && keys.includes(preferredName))
+                );
+            });
+
+            if (matched) return matched;
+
+            return drivers.find((d) => String(d.status || '').toLowerCase() === 'busy')
+                || drivers.find((d) => String(d.status || '').toLowerCase() === 'available')
+                || drivers[0];
+        } catch (_) {
+            return null;
+        }
+    }
+
+    async function fetchDispatchStatusFromBackend() {
+        const emergencyId = activeSOS?.emergencyId || activeSOS?.sosId;
+        if (!emergencyId) return null;
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/emergency/${encodeURIComponent(emergencyId)}/dispatch-status`);
+            const data = await response.json();
+            if (!response.ok || !data.success) return null;
+            return data;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function applyDispatchStatusToTracking(statusData) {
+        if (!activeSOS || !statusData) return;
+
+        if (statusData.status === 'cancelled') {
+            clearSOSAsyncTimers();
+            clearInterval(etaInterval);
+            activeSOS = null;
+            sosState = 'idle';
+            clearActiveSOSSession();
+            document.getElementById('trackingCard').style.display='none';
+            document.getElementById('sosHint').textContent='Tap to dispatch emergency services';
+            closeModal();
+            showToast('❌ Emergency request cancelled');
+            return;
+        }
+
+        const driver = statusData.driver || {};
+        if (driver.name || driver.vehicle || driver.phone) {
+            activeSOS.assignedDriver = {
+                id: driver.id || activeSOS.assignedDriver?.id || null,
+                name: driver.name || activeSOS.assignedDriver?.name || '',
+                vehicle: driver.vehicle || activeSOS.assignedDriver?.vehicle || '',
+                phone: driver.phone || activeSOS.assignedDriver?.phone || ''
+            };
+
+            document.getElementById('trackingDriver').textContent = activeSOS.assignedDriver.name;
+            document.getElementById('trackingVehicle').textContent = activeSOS.assignedDriver.vehicle;
+            document.getElementById('trackingContact').textContent = activeSOS.assignedDriver.phone || 'Dispatch center';
+        }
+
+        if (statusData.hospital?.name) {
+            document.getElementById('trackingHospital').textContent = statusData.hospital.name;
+        } else {
+            document.getElementById('trackingHospital').textContent = 'Hospital will be assigned after pickup';
+        }
+
+        if (statusData.driver?.location && typeof statusData.driver.location.lat === 'number' && typeof statusData.driver.location.lng === 'number') {
+            activeSOS.driverLocation = {
+                lat: statusData.driver.location.lat,
+                lng: statusData.driver.location.lng
+            };
+            hasLiveDriverFeed = true;
+
+            if (sosState === 'enroute') {
+                refreshLiveRouteFromDriverLocation(true);
+            }
+        }
+
+        persistActiveSOSSession();
+
+        if (statusData.status === 'enroute' && sosState !== 'enroute') {
+            handleDriverAccepted({
+                sosId: activeSOS.sosId,
+                driverName: activeSOS.assignedDriver?.name || 'Nearest ambulance',
+                vehicle: activeSOS.assignedDriver?.vehicle || 'Ambulance',
+                driverPhone: activeSOS.assignedDriver?.phone || '',
+                driverLocation: activeSOS.driverLocation || null,
+                acceptedAt: Date.now(),
+                source: 'dispatch-status-poll'
+            });
+        }
+    }
+
+    function startDispatchStatusPolling() {
+        clearInterval(dispatchStatusPollInterval);
+        dispatchStatusPollInterval = setInterval(async () => {
+            if (!activeSOS) return;
+            const statusData = await fetchDispatchStatusFromBackend();
+            applyDispatchStatusToTracking(statusData);
+        }, 2500);
+    }
 
     function clearSOSAsyncTimers() {
         clearTimeout(assignTimeout);
         clearTimeout(notifyTimeout);
         clearTimeout(driverFallbackTimeout);
         clearInterval(driverPollInterval);
+        clearInterval(dispatchStatusPollInterval);
+        stopCitizenMapHealthMonitor();
+    }
+
+    function revealTrackingCard() {
+        const trackingCard = document.getElementById('trackingCard');
+        if (trackingCard) {
+            trackingCard.style.display = 'block';
+        }
+        document.getElementById('sosHint').textContent = 'Ambulance is on the way!';
+    }
+
+    function hydrateTrackingDetailsFromActiveSOS() {
+        if (!activeSOS) return;
+
+        const assignedDriver = activeSOS.assignedDriver || {};
+        const resolvedDriverName = assignedDriver.name || activeSOS.driverName || 'Nearest ambulance';
+        const resolvedVehicle = assignedDriver.vehicle || activeSOS.vehicle || 'Ambulance Unit';
+        const resolvedPhone = assignedDriver.phone || activeSOS.driverPhone || 'Dispatch center';
+        const resolvedHospital = activeSOS.assignedHospital?.name || 'Hospital will be assigned after pickup';
+        const resolvedPatientName = activeSOS.citizenName || activeSOS.patientName || 'Citizen SOS Request';
+
+        document.getElementById('trackingDriver').textContent = resolvedDriverName;
+        document.getElementById('trackingVehicle').textContent = resolvedVehicle;
+        document.getElementById('trackingContact').textContent = resolvedPhone;
+        document.getElementById('trackingHospital').textContent = resolvedHospital;
+
+        const patientNameEl = document.getElementById('patientName');
+        if (patientNameEl) patientNameEl.textContent = resolvedPatientName;
     }
 
     function openSOS() { 
-        if (document.getElementById('trackingCard').style.display === 'block') {
+        if (activeSOS || document.getElementById('trackingCard').style.display === 'block') {
+            if (activeSOS) {
+                if (sosState === 'enroute') {
+                    revealTrackingCard();
+                    initLiveMap();
+                } else {
+                    document.getElementById('sosModal').classList.add('open');
+                    renderSOSModal();
+                }
+            }
             showToast('🚑 Emergency already active. Track live below.');
             return;
         }
@@ -1175,6 +1678,7 @@
         const status = document.getElementById('sosStatus');
         const dispatchBtn = document.getElementById('dispatchBtn');
         const cancelBtn = document.getElementById('cancelBtn');
+        const closeAfterCancelBtn = document.getElementById('closeAfterCancelBtn');
 
         if (sosState === 'idle') {
             title.textContent = '🚨 Emergency Type';
@@ -1186,6 +1690,7 @@
             dispatchBtn.onclick = sendSOSRequest;
             cancelBtn.style.display = 'block';
             cancelBtn.textContent = 'Cancel';
+            if (closeAfterCancelBtn) closeAfterCancelBtn.style.display = 'none';
             return;
         }
 
@@ -1195,7 +1700,10 @@
             types.style.display = 'none';
             status.style.display = 'block';
             dispatchBtn.style.display = 'none';
-            cancelBtn.style.display = 'none';
+            cancelBtn.style.display = 'block';
+            cancelBtn.textContent = '✕ CANCEL REQUEST';
+            cancelBtn.onclick = cancelSOS;
+            if (closeAfterCancelBtn) closeAfterCancelBtn.style.display = 'block';
             return;
         }
 
@@ -1206,7 +1714,9 @@
             status.style.display = 'block';
             dispatchBtn.style.display = 'none';
             cancelBtn.style.display = 'block';
-            cancelBtn.textContent = 'Close';
+            cancelBtn.textContent = '✕ CANCEL REQUEST';
+            cancelBtn.onclick = cancelSOS;
+            if (closeAfterCancelBtn) closeAfterCancelBtn.style.display = 'block';
             return;
         }
 
@@ -1217,30 +1727,116 @@
         dispatchBtn.style.display = 'none';
         cancelBtn.style.display = 'block';
         cancelBtn.textContent = 'Close';
+        cancelBtn.onclick = closeModal;
+        if (closeAfterCancelBtn) closeAfterCancelBtn.style.display = 'none';
     }
 
-    function sendSOSRequest() {
+    async function sendSOSRequest() {
         if (sosState !== 'idle') return;
         const selectedTypeEl = document.querySelector('.etype-btn.selected .etype-label');
         const emergencyType = selectedTypeEl ? selectedTypeEl.textContent : 'Emergency';
+        const unknownDetailsEl = document.getElementById('unknownEmergencyDetails');
+        const isUnknownEmergency = emergencyType === 'Unknown Emergency';
+        const unknownDetails = unknownDetailsEl ? unknownDetailsEl.value.trim() : '';
+
+        if (isUnknownEmergency && !unknownDetails) {
+            showToast('⚠️ Please add a short description for unknown emergency.');
+            if (unknownDetailsEl) unknownDetailsEl.focus();
+            return;
+        }
+
+        const getPriorityFromType = (type) => {
+            const criticalTypes = [
+                'Cardiac Arrest / Heart Attack',
+                'Breathing Problem',
+                'Severe Bleeding',
+                'Poisoning / Overdose',
+                'Seizure / Epilepsy',
+                'Road Accident (Major)',
+                'Unconscious / Not Responding'
+            ];
+            const mediumTypes = [
+                'Road Accident (Minor)',
+                'Fracture / Broken Bone',
+                'High Fever / Infection'
+            ];
+            if (criticalTypes.includes(type)) return 'critical';
+            if (mediumTypes.includes(type)) return 'medium';
+            return 'high';
+        };
+
+        const dispatchPriority = getPriorityFromType(emergencyType);
+        const emergencyDescription = isUnknownEmergency
+            ? `Unknown Emergency: ${unknownDetails}`
+            : `${emergencyType} SOS from citizen dashboard`;
+
+        let savedEmergencyId = null;
+        if (authToken) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/emergency`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        citizenId: storedCitizen.id,
+                        emergencyType,
+                        location: { ...currentUserLocation },
+                        description: emergencyDescription,
+                        priority: dispatchPriority,
+                        medicalSnapshot: {
+                            bloodGroup: storedCitizen.bloodGroup || '',
+                            organDonor: medicalProfile.organDonor,
+                            allergies: medicalProfile.allergies,
+                            conditions: medicalProfile.conditions,
+                            medications: medicalProfile.medications,
+                            emergencyNote: medicalProfile.emergencyNote
+                        }
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok && data.success && data.emergencyId) {
+                    savedEmergencyId = data.emergencyId;
+                }
+            } catch (_) {
+                // Continue with dispatch UI even if DB write fails.
+            }
+        }
 
         activeSOS = {
-            sosId: `SOS-${Date.now()}`,
+            sosId: savedEmergencyId || `SOS-${Date.now()}`,
+            emergencyId: savedEmergencyId || null,
             emergencyType,
             createdAt: Date.now(),
-            location: { ...currentUserLocation }
+            location: { ...currentUserLocation },
+            citizenId: storedCitizen.id || storedCitizen.phone || 'citizen-web',
+            citizenName: storedCitizen.name || 'Citizen SOS Request',
+            citizenPhone: storedCitizen.phone || '',
+            priority: dispatchPriority,
+            medicalSnapshot: {
+                bloodGroup: storedCitizen.bloodGroup || '',
+                organDonor: medicalProfile.organDonor,
+                allergies: medicalProfile.allergies,
+                conditions: medicalProfile.conditions,
+                medications: medicalProfile.medications,
+                emergencyNote: medicalProfile.emergencyNote
+            }
         };
 
         sosState = 'pending';
+        persistActiveSOSSession();
         renderSOSModal();
         showToast('📨 Request sent. Locating nearest ambulance...');
         clearSOSAsyncTimers();
+        startDispatchStatusPolling();
 
         if (dispatchSocket && dispatchSocket.connected) {
             dispatchSocket.emit('citizen-sos-request', {
                 ...activeSOS,
-                hospital: 'Civil Hospital, Nashik',
-                etaMinutes: 7
+                emergencyId: savedEmergencyId || activeSOS.sosId,
+                location: { ...currentUserLocation }
             });
         }
 
@@ -1251,10 +1847,19 @@
         }, delay);
     }
 
-    function showAmbulanceAssigned() {
+    async function showAmbulanceAssigned() {
         if (!activeSOS || sosState !== 'pending') return;
         sosState = 'assigned';
+        persistActiveSOSSession();
         renderSOSModal();
+        const statusData = await fetchDispatchStatusFromBackend();
+        applyDispatchStatusToTracking(statusData);
+        if (!activeSOS.assignedDriver?.name) {
+            document.getElementById('trackingDriver').textContent = 'Matching nearest DB driver...';
+            document.getElementById('trackingVehicle').textContent = 'Waiting for assignment';
+            document.getElementById('trackingContact').textContent = 'Dispatch center';
+            document.getElementById('trackingHospital').textContent = 'Hospital will be assigned after pickup';
+        }
         showToast('✅ Nearest ambulance found. Confirming road ETA...');
 
         // Step 3 (5-12 sec): notify driver
@@ -1267,41 +1872,24 @@
     function notifyDriverAndWaitAcceptance() {
         if (!activeSOS) return;
         sosState = 'waiting_driver';
+        persistActiveSOSSession();
         renderSOSModal();
 
         const callPayload = {
             ...activeSOS,
-            hospital: 'Civil Hospital, Nashik',
-            etaMinutes: 7,
             status: 'ASSIGNED',
             dispatchedAt: Date.now()
         };
         showToast('📲 Driver notified. Waiting for acceptance...');
 
-        // Legacy same-browser fallback for local demo mode.
-        localStorage.setItem('jc_dispatch_call', JSON.stringify(callPayload));
-        driverPollInterval = setInterval(() => {
-            const raw = localStorage.getItem('jc_dispatch_accept');
-            if (!raw || !activeSOS) return;
-            try {
-                const accepted = JSON.parse(raw);
-                if (accepted.sosId === activeSOS.sosId) {
-                    handleDriverAccepted(accepted);
-                }
-            } catch (_) {
-                // Ignore malformed data
-            }
-        }, 1000);
-
-        // Demo fallback if no driver dashboard is open
-        driverFallbackTimeout = setTimeout(() => {
-            handleDriverAccepted({
-                sosId: activeSOS.sosId,
-                driverName: 'Rajesh Kumar',
-                vehicle: 'MH-15-AB-4821',
-                acceptedAt: Date.now(),
-                source: 'auto-control-room'
-            });
+        // DB-backed fallback if no driver dashboard acceptance is received.
+        driverFallbackTimeout = setTimeout(async () => {
+            if (!activeSOS) return;
+            const polled = await fetchDispatchStatusFromBackend();
+            applyDispatchStatusToTracking(polled);
+            if (sosState === 'enroute') return;
+            document.getElementById('statusSub').textContent = 'Driver is not yet accepted. Dispatch is re-trying nearest available ambulance.';
+            showToast('⌛ Waiting for driver acceptance. Control room may reassign if needed.');
         }, 12000);
     }
 
@@ -1309,8 +1897,21 @@
         if (!activeSOS || sosState === 'enroute') return;
         clearSOSAsyncTimers();
         sosState = 'enroute';
+        persistActiveSOSSession();
+        revealTrackingCard();
+        if (acceptedData) {
+            activeSOS.assignedDriver = {
+                id: acceptedData.driverId || activeSOS.assignedDriver?.id || null,
+                name: acceptedData.driverName || activeSOS.assignedDriver?.name || 'Nearest ambulance',
+                vehicle: acceptedData.vehicle || activeSOS.assignedDriver?.vehicle || 'Ambulance Unit',
+                phone: acceptedData.driverPhone || activeSOS.assignedDriver?.phone || 'Dispatch center'
+            };
+            activeSOS.driverLocation = acceptedData.driverLocation || activeSOS.driverLocation || null;
+        }
+        hydrateTrackingDetailsFromActiveSOS();
         renderSOSModal();
-        showToast(`✅ Driver accepted (${acceptedData.driverName || 'Assigned Driver'}). Ambulance en route.`);
+        document.getElementById('statusSub').textContent = 'Ambulance en route. Tracking live now.';
+        showToast(`✅ Driver accepted (${acceptedData?.driverName || acceptedData?.vehicle || 'Ambulance'}). Ambulance en route.`);
 
         // Step 4 parallel notifications simulation
         setTimeout(() => showToast('📩 Family alerted with tracking link'), 900);
@@ -1322,116 +1923,582 @@
     }
     function selectType(el) { 
         document.querySelectorAll('.etype-btn').forEach(b=>b.classList.remove('selected')); 
-        el.classList.add('selected'); 
+        el.classList.add('selected');
+        const labelEl = el.querySelector('.etype-label');
+        const selectedLabel = labelEl ? labelEl.textContent.trim() : '';
+        const unknownWrap = document.getElementById('unknownEmergencyWrap');
+        const unknownDetailsEl = document.getElementById('unknownEmergencyDetails');
+        if (unknownWrap) {
+            const isUnknown = selectedLabel === 'Unknown Emergency';
+            unknownWrap.classList.toggle('open', isUnknown);
+            if (!isUnknown && unknownDetailsEl) unknownDetailsEl.value = '';
+        }
     }
-    function dispatchNow() { closeModal(); activateTracking(); showToast('🚑 Ambulance dispatched! ETA: 7 minutes'); }
+    function dispatchNow() { closeModal(); showToast('📲 SOS sent. Waiting for driver acceptance.'); }
 
-    let etaInterval=null, etaMinutes=7;
+    let etaInterval = null, etaMinutes = 7;
     let liveMap = null;
-    let userMapMarker = null;
     let ambulanceMapMarker = null;
-    let mapRouteLine = null;
+    let userMapMarker = null;
+    let leafletLiveMap = null;
+    let leafletAmbulanceMarker = null;
+    let leafletUserMarker = null;
+    let leafletRoutePolyline = null;
+    let liveMapEngine = 'google';
+    let directionsService = null;
+    let directionsRenderer = null;
+    let liveFallbackPolyline = null;
+    let liveAlternateRoutePolylines = [];
+    let routePoints = [];
     let mapAnimationStep = 0;
+    let hasLiveDriverFeed = false;
+    let lastLiveRouteRefreshAt = 0;
+    const USE_EMBEDDED_CITIZEN_ROUTE_VIEW = false;
+    let lastEmbeddedCitizenRouteKey = '';
+    let hasSwitchedToLeafletFallback = false;
+    let citizenMapHealthInterval = null;
 
-    function createMapDivIcon(className) {
-        return L.divIcon({
-            className: '',
-            html: `<div class="${className}"></div>`,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
-        });
+    function stopCitizenMapHealthMonitor() {
+        if (citizenMapHealthInterval) {
+            clearInterval(citizenMapHealthInterval);
+            citizenMapHealthInterval = null;
+        }
     }
 
-    function interpolateCoord(start, end, ratio) {
-        return [
-            start[0] + (end[0] - start[0]) * ratio,
-            start[1] + (end[1] - start[1]) * ratio
-        ];
+    function startCitizenMapHealthMonitor() {
+        stopCitizenMapHealthMonitor();
+        citizenMapHealthInterval = setInterval(async () => {
+            if (!activeSOS || sosState !== 'enroute') return;
+            const mapEl = document.getElementById('liveMap');
+            if (!mapEl) return;
+
+            if (detectGoogleMapErrorOverlay(mapEl) || liveMapEngine === 'google-unavailable') {
+                await initLiveMap();
+            }
+        }, 1200);
     }
 
-    function initLiveMap() {
-        const mapEl = document.getElementById('liveMap');
-        if (!mapEl || typeof L === 'undefined') return;
+    function detectGoogleMapErrorOverlay(mapEl) {
+        if (!mapEl) return false;
+        if (googleMapsAuthFailed) return true;
+        if (mapEl.querySelector('.gm-err-container')) return true;
+        const text = String(mapEl.textContent || '').toLowerCase();
+        return text.includes("didn't load google maps correctly")
+            || text.includes('this page didn\'t load google maps correctly')
+            || text.includes('oops! something went wrong');
+    }
 
-        if (!liveMap) {
-            liveMap = L.map('liveMap', {
-                zoomControl: false,
-                attributionControl: true
-            }).setView([currentUserLocation.lat, currentUserLocation.lng], 14);
+    async function maybeSwitchCitizenMapToLeaflet(mapEl, ambulanceStart, userPos) {
+        return false;
+    }
 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(liveMap);
+    function getGoogleAmbulanceMarkerIcon() {
+        return {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: '#0284c7',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3
+        };
+    }
+
+    function getGoogleSosMarkerIcon() {
+        return {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: '#dc2626',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3
+        };
+    }
+
+    function selectShortestGoogleRoute(routes = []) {
+        if (!Array.isArray(routes) || !routes.length) {
+            return { route: null, index: 0 };
         }
 
-        const userPos = [currentUserLocation.lat, currentUserLocation.lng];
-        const ambulanceStart = [currentUserLocation.lat - 0.02, currentUserLocation.lng - 0.02];
+        let bestIndex = 0;
+        let bestDuration = Number.POSITIVE_INFINITY;
 
-        if (userMapMarker) liveMap.removeLayer(userMapMarker);
-        if (ambulanceMapMarker) liveMap.removeLayer(ambulanceMapMarker);
-        if (mapRouteLine) liveMap.removeLayer(mapRouteLine);
+        routes.forEach((route, index) => {
+            const leg = route?.legs?.[0];
+            const trafficDuration = Number(leg?.duration_in_traffic?.value);
+            const normalDuration = Number(leg?.duration?.value);
+            const score = Number.isFinite(trafficDuration)
+                ? trafficDuration
+                : (Number.isFinite(normalDuration) ? normalDuration : Number.POSITIVE_INFINITY);
 
-        userMapMarker = L.marker(userPos, { icon: createMapDivIcon('map-pin-user') })
-            .addTo(liveMap)
-            .bindPopup('Your Location');
+            if (score < bestDuration) {
+                bestDuration = score;
+                bestIndex = index;
+            }
+        });
 
-        ambulanceMapMarker = L.marker(ambulanceStart, { icon: createMapDivIcon('map-pin-ambulance') })
-            .addTo(liveMap)
-            .bindPopup('Ambulance');
+        return { route: routes[bestIndex] || null, index: bestIndex };
+    }
 
-        mapRouteLine = L.polyline([ambulanceStart, userPos], {
-            color: '#0284c7',
-            weight: 4,
-            opacity: 0.8,
-            dashArray: '10, 8'
-        }).addTo(liveMap);
+    function getTrafficAwareRouteColor(leg) {
+        if (!leg || !leg.duration || !leg.duration_in_traffic) {
+            return '#1a73e8';
+        }
 
-        liveMap.fitBounds(L.latLngBounds([ambulanceStart, userPos]), { padding: [28, 28] });
-        setTimeout(() => liveMap.invalidateSize(), 200);
+        const normalDuration = Number(leg.duration.value);
+        const trafficDuration = Number(leg.duration_in_traffic.value);
+        if (!Number.isFinite(normalDuration) || !Number.isFinite(trafficDuration) || normalDuration <= 0) {
+            return '#1a73e8';
+        }
+
+        const delayPercent = ((trafficDuration - normalDuration) / normalDuration) * 100;
+        if (delayPercent > 50) return '#dc2626';
+        if (delayPercent > 20) return '#f59e0b';
+        return '#059669';
+    }
+
+    function applyCitizenRouteStyle(routeColor) {
+        if (liveFallbackPolyline) {
+            liveFallbackPolyline.setOptions({
+                strokeColor: routeColor,
+                strokeOpacity: 0.88,
+                strokeWeight: 7,
+                clickable: false,
+                zIndex: 9
+            });
+        }
+    }
+
+    function renderCitizenSimpleRouteFallback(origin, destination) {
+        if (!liveMap || !origin || !destination || !window.google || !google.maps) return;
+
+        if (liveFallbackPolyline) {
+            liveFallbackPolyline.setMap(null);
+            liveFallbackPolyline = null;
+        }
+
+        const originLatLng = new google.maps.LatLng(origin.lat, origin.lng);
+        const destinationLatLng = new google.maps.LatLng(destination.lat, destination.lng);
+
+        liveFallbackPolyline = new google.maps.Polyline({
+            map: liveMap,
+            path: [originLatLng, destinationLatLng],
+            geodesic: true,
+            strokeColor: '#1a73e8',
+            strokeWeight: 7,
+            strokeOpacity: 0.88,
+            clickable: false,
+            zIndex: 9
+        });
+
+        routePoints = [origin, destination];
+
+        const bounds = new google.maps.LatLngBounds();
+        bounds.extend(originLatLng);
+        bounds.extend(destinationLatLng);
+        liveMap.fitBounds(bounds, 80);
+    }
+
+    function clearCitizenRouteOverlays() {
+        if (liveFallbackPolyline) {
+            liveFallbackPolyline.setMap(null);
+            liveFallbackPolyline = null;
+        }
+        liveAlternateRoutePolylines.forEach((polyline) => polyline.setMap(null));
+        liveAlternateRoutePolylines = [];
+        if (directionsRenderer) {
+            directionsRenderer.setMap(null);
+            directionsRenderer = null;
+        }
+    }
+
+    function renderEmbeddedCitizenRoute(origin, destination) {
+        const mapEl = document.getElementById('liveMap');
+        if (!mapEl || !origin || !destination) return;
+        const oLat = Number(origin.lat);
+        const oLng = Number(origin.lng);
+        const dLat = Number(destination.lat);
+        const dLng = Number(destination.lng);
+        if (!Number.isFinite(oLat) || !Number.isFinite(oLng) || !Number.isFinite(dLat) || !Number.isFinite(dLng)) return;
+
+        const routeKey = `${oLat.toFixed(5)},${oLng.toFixed(5)}->${dLat.toFixed(5)},${dLng.toFixed(5)}`;
+        if (routeKey === lastEmbeddedCitizenRouteKey) return;
+        lastEmbeddedCitizenRouteKey = routeKey;
+
+        const originStr = `${oLat},${oLng}`;
+        const destinationStr = `${dLat},${dLng}`;
+        const embedUrl = `https://www.google.com/maps?output=embed&saddr=${encodeURIComponent(originStr)}&daddr=${encodeURIComponent(destinationStr)}&dirflg=d`;
+        mapEl.innerHTML = `<iframe title="Live ambulance route" src="${embedUrl}" width="100%" height="100%" style="border:0;" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`;
+    }
+
+    function interpolateLatLng(start, end, ratio) {
+        return {
+            lat: start.lat + (end.lat - start.lat) * ratio,
+            lng: start.lng + (end.lng - start.lng) * ratio
+        };
+    }
+
+    function getRoutePointByRatio(ratio) {
+        if (!routePoints.length) return null;
+        if (routePoints.length === 1) return routePoints[0];
+
+        const clamped = Math.max(0, Math.min(1, ratio));
+        const scaled = clamped * (routePoints.length - 1);
+        const idx = Math.floor(scaled);
+        const nextIdx = Math.min(idx + 1, routePoints.length - 1);
+        const innerRatio = scaled - idx;
+
+        return interpolateLatLng(routePoints[idx], routePoints[nextIdx], innerRatio);
+    }
+
+    function getLocationTextForDisplay(location, fallbackText) {
+        if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') {
+            return fallbackText;
+        }
+
+        if (activeSOS?.assignedDriver?.name && location === activeSOS.driverLocation) {
+            return `Driver live location (${location.lat.toFixed(4)}, ${location.lng.toFixed(4)})`;
+        }
+
+        if (location === currentUserLocation || (activeSOS?.location && location.lat === activeSOS.location.lat && location.lng === activeSOS.location.lng)) {
+            return `Your location (${location.lat.toFixed(4)}, ${location.lng.toFixed(4)})`;
+        }
+
+        return `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`;
+    }
+
+    function syncCitizenRouteEndpointLabels() {
+        const routeStartEl = document.getElementById('routeStartText');
+        const routeStopEl = document.getElementById('routeStopText');
+
+        if (routeStartEl) {
+            routeStartEl.textContent = getLocationTextForDisplay(activeSOS?.driverLocation, 'Driver live location');
+        }
+
+        if (routeStopEl) {
+            routeStopEl.textContent = getLocationTextForDisplay(currentUserLocation || activeSOS?.location, 'Your location');
+        }
+    }
+
+    async function initLiveMap() {
+        const mapEl = document.getElementById('liveMap');
+        if (!mapEl) return;
+
+        if (!currentUserLocation || typeof currentUserLocation.lat !== 'number' || typeof currentUserLocation.lng !== 'number') {
+            currentUserLocation = { lat: 19.9975, lng: 73.7898 };
+        }
+
+        const userPos = { lat: currentUserLocation.lat, lng: currentUserLocation.lng };
+        const assignedStart = activeSOS?.driverLocation;
+        const ambulanceStart = (assignedStart && typeof assignedStart.lat === 'number' && typeof assignedStart.lng === 'number')
+            ? { lat: assignedStart.lat, lng: assignedStart.lng }
+            : null;
+
+        if (USE_EMBEDDED_CITIZEN_ROUTE_VIEW && ambulanceStart) {
+            routePoints = [ambulanceStart, userPos];
+            renderEmbeddedCitizenRoute(ambulanceStart, userPos);
+            syncCitizenRouteEndpointLabels();
+            return;
+        }
+
+        let googleReady = true;
+        try {
+            await ensureGoogleMapsLoaded();
+        } catch (error) {
+            googleReady = false;
+        }
+
+        if (!googleReady) {
+            liveMapEngine = 'google-unavailable';
+            mapEl.innerHTML = '<div style="padding:12px;color:#b91c1c;font-weight:700;">Google Maps unavailable. Retrying...</div>';
+            setTimeout(() => initLiveMap(), 1500);
+            return;
+        }
+
+        liveMapEngine = 'google';
+
+        try {
+            if (!liveMap) {
+                liveMap = new google.maps.Map(mapEl, {
+                    center: userPos,
+                    zoom: 13,
+                    mapTypeId: 'roadmap',
+                    zoomControl: true,
+                    mapTypeControl: true,
+                    fullscreenControl: true,
+                    streetViewControl: false,
+                    mapTypeControlOptions: {
+                        style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
+                        position: google.maps.ControlPosition.TOP_LEFT
+                    }
+                });
+            }
+        } catch (_) {
+            liveMapEngine = 'google-unavailable';
+            mapEl.innerHTML = '<div style="padding:12px;color:#b91c1c;font-weight:700;">Google Maps unavailable. Retrying...</div>';
+            setTimeout(() => initLiveMap(), 1500);
+            return;
+        }
+
+        clearCitizenRouteOverlays();
+
+        if (!ambulanceStart) {
+            routePoints = [];
+            syncCitizenRouteEndpointLabels();
+            document.getElementById('etaText').textContent = 'Waiting for driver live location...';
+            document.getElementById('etaPill').textContent = 'GPS';
+            return;
+        }
+
+        renderCitizenSimpleRouteFallback(ambulanceStart, userPos);
+        applyCitizenRouteStyle('#1a73e8');
+
+        syncCitizenRouteEndpointLabels();
+
+        mapAnimationStep = 0;
+    }
+
+    async function initLeafletLiveMap(mapEl, ambulanceStart, userPos) {
+        // Leaflet fallback is intentionally disabled for citizen map.
+        return;
+        try {
+            await ensureLeafletLoaded();
+        } catch (_) {
+            mapEl.innerHTML = '<div style="padding:12px;color:#b91c1c;font-weight:700;">Routing unavailable: Map provider failed to load.</div>';
+            showToast('⚠️ Routing map unavailable');
+            return;
+        }
+
+        liveMapEngine = 'leaflet';
+
+        if (leafletLiveMap) {
+            try {
+                leafletLiveMap.remove();
+            } catch (_) {}
+            leafletLiveMap = null;
+        }
+        mapEl.innerHTML = '';
+
+        if (liveMap) {
+            liveMap = null;
+        }
+
+        leafletLiveMap = L.map(mapEl).setView([userPos.lat, userPos.lng], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(leafletLiveMap);
+
+        if (leafletRoutePolyline) {
+            leafletRoutePolyline.remove();
+            leafletRoutePolyline = null;
+        }
+
+        routePoints = [];
+        try {
+            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${ambulanceStart.lng},${ambulanceStart.lat};${userPos.lng},${userPos.lat}?overview=full&geometries=geojson`;
+            const response = await fetch(osrmUrl);
+            const data = await response.json();
+            const coordinates = data?.routes?.[0]?.geometry?.coordinates || [];
+            routePoints = coordinates.map((coord) => ({ lat: Number(coord[1]), lng: Number(coord[0]) }));
+        } catch (_) {
+            routePoints = [];
+        }
+
+        if (!routePoints.length) {
+            routePoints = [ambulanceStart, userPos];
+        }
+
+        leafletRoutePolyline = L.polyline(routePoints.map((p) => [p.lat, p.lng]), {
+            color: '#f59e0b',
+            weight: 5,
+            opacity: 0.9
+        }).addTo(leafletLiveMap);
+
+        if (leafletAmbulanceMarker) leafletAmbulanceMarker.remove();
+        if (leafletUserMarker) leafletUserMarker.remove();
+
+        leafletAmbulanceMarker = L.marker([routePoints[0].lat, routePoints[0].lng], {
+            icon: L.divIcon({
+                className: 'leaflet-ambulance-icon',
+                html: '<div style="font-size:22px;line-height:22px;">🚑</div>',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            })
+        }).addTo(leafletLiveMap);
+
+        leafletUserMarker = L.marker([userPos.lat, userPos.lng], {
+            icon: L.divIcon({
+                className: 'leaflet-sos-icon',
+                html: '<div style="font-size:22px;line-height:22px;">🆘</div>',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            })
+        }).addTo(leafletLiveMap);
+
+        leafletLiveMap.fitBounds(leafletRoutePolyline.getBounds(), { padding: [24, 24] });
+        setTimeout(() => {
+            if (leafletLiveMap) leafletLiveMap.invalidateSize();
+        }, 120);
+
+        showToast('🗺️ Using fallback live routing map');
         mapAnimationStep = 0;
     }
 
     function updateLiveAmbulancePosition(progressRatio) {
-        if (!ambulanceMapMarker || !userMapMarker || !mapRouteLine) return;
+        // Route-only citizen map mode intentionally does not animate map markers.
+        return;
+    }
 
-        const start = [currentUserLocation.lat - 0.02, currentUserLocation.lng - 0.02];
-        const end = [currentUserLocation.lat, currentUserLocation.lng];
-        const nextPos = interpolateCoord(start, end, progressRatio);
+    async function refreshLiveRouteFromDriverLocation(force = false) {
+        if (!activeSOS || sosState !== 'enroute') return;
+        const origin = activeSOS.driverLocation;
+        if (!origin || typeof origin.lat !== 'number' || typeof origin.lng !== 'number') return;
 
-        ambulanceMapMarker.setLatLng(nextPos);
-        mapRouteLine.setLatLngs([nextPos, end]);
+        const destination = (currentUserLocation && typeof currentUserLocation.lat === 'number' && typeof currentUserLocation.lng === 'number')
+            ? { lat: currentUserLocation.lat, lng: currentUserLocation.lng }
+            : (activeSOS.location || null);
+        if (!destination || typeof destination.lat !== 'number' || typeof destination.lng !== 'number') return;
 
-        if (liveMap) {
-            liveMap.panTo(nextPos, { animate: true, duration: 0.8 });
+        const now = Date.now();
+        if (!force && now - lastLiveRouteRefreshAt < 8000) return;
+        lastLiveRouteRefreshAt = now;
+
+        if (USE_EMBEDDED_CITIZEN_ROUTE_VIEW) {
+            routePoints = [origin, destination];
+            renderEmbeddedCitizenRoute(origin, destination);
+            syncCitizenRouteEndpointLabels();
+            return;
         }
+
+        if (!liveMap) {
+            await initLiveMap();
+            if (!liveMap) return;
+        }
+
+        renderCitizenSimpleRouteFallback(origin, destination);
+        applyCitizenRouteStyle('#1a73e8');
+        syncCitizenRouteEndpointLabels();
     }
 
     function activateTracking() {
         clearSOSAsyncTimers();
-        sosState = 'idle';
-        document.getElementById('trackingCard').style.display='block';
-        document.getElementById('sosHint').textContent='Ambulance is on the way!';
+        sosState = 'enroute';
+        revealTrackingCard();
+        hydrateTrackingDetailsFromActiveSOS();
+        document.getElementById('statusSub').textContent = 'Live tracking active. Ambulance is on the way.';
+        persistActiveSOSSession();
+        hasLiveDriverFeed = Boolean(activeSOS?.driverLocation);
+        lastLiveRouteRefreshAt = 0;
+        hasSwitchedToLeafletFallback = false;
+        syncCitizenRouteEndpointLabels();
         initLiveMap();
+        if (activeSOS?.driverLocation) {
+            refreshLiveRouteFromDriverLocation(true);
+        }
+        startCitizenMapHealthMonitor();
         etaMinutes=7; clearInterval(etaInterval);
         etaInterval = setInterval(() => {
-            mapAnimationStep = Math.min(mapAnimationStep + 1, 7);
-            const ratio = Math.min(mapAnimationStep / 7, 1);
-            updateLiveAmbulancePosition(ratio);
             if (etaMinutes>1) { etaMinutes--; document.getElementById('etaText').textContent=etaMinutes+' minute'+(etaMinutes>1?'s':''); document.getElementById('etaPill').textContent=etaMinutes+' min'; }
             else { clearInterval(etaInterval); document.getElementById('etaText').textContent='Arriving now!'; document.getElementById('etaPill').textContent='NOW'; showToast('🏥 Ambulance has arrived!'); }
         }, 8000);
     }
-    function cancelSOS() {
-        if (!confirm('Are you sure you want to cancel the emergency request?')) return;
+    async function cancelSOS() {
+        if (!activeSOS || sosState === 'idle') {
+            closeModal();
+            return;
+        }
+        const confirmMessage = sosState === 'enroute'
+            ? 'Ambulance is already en route. Do you still want to cancel this emergency request?'
+            : 'Are you sure you want to cancel the emergency request?';
+        if (!confirm(confirmMessage)) return;
+
+        const emergencyId = activeSOS?.emergencyId || activeSOS?.sosId;
+        const cancelPayload = {
+            sosId: activeSOS?.sosId || null,
+            emergencyId: emergencyId || null,
+            citizenId: storedCitizen.id || null,
+            citizenName: storedCitizen.name || '',
+            citizenPhone: storedCitizen.phone || ''
+        };
+
+        let persisted = false;
+
+        if (dispatchSocket && dispatchSocket.connected) {
+            dispatchSocket.emit('citizen-cancel-sos', cancelPayload);
+            persisted = true;
+        }
+
+        if (emergencyId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/emergency/${encodeURIComponent(emergencyId)}/cancel`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+                    },
+                    body: JSON.stringify(cancelPayload)
+                });
+                const data = await response.json().catch(() => ({}));
+                if (response.ok && data.success) {
+                    persisted = true;
+                }
+            } catch (_) {
+                // Keep local fallback behavior below.
+            }
+        }
+
+        if (!persisted) {
+            showToast('⚠️ Cancel saved locally. Backend sync failed.');
+        }
+
         document.getElementById('trackingCard').style.display='none';
         document.getElementById('sosHint').textContent='Tap to dispatch emergency services';
         sosState = 'idle';
         activeSOS = null;
+        clearActiveSOSSession();
         clearSOSAsyncTimers();
         clearInterval(etaInterval);
         mapAnimationStep = 0;
+        closeModal();
         showToast('❌ Emergency request cancelled');
+    }
+
+    async function restoreSOSSessionIfAny() {
+        let stored = null;
+        try {
+            stored = JSON.parse(localStorage.getItem(sosSessionKey) || 'null');
+        } catch (_) {
+            stored = null;
+        }
+
+        if (!stored || !stored.activeSOS) return;
+
+        activeSOS = stored.activeSOS;
+        sosState = stored.sosState || 'pending';
+        renderSOSModal();
+        startDispatchStatusPolling();
+
+        const statusData = await fetchDispatchStatusFromBackend();
+        if (statusData) {
+            applyDispatchStatusToTracking(statusData);
+            if (statusData.status === 'completed' || statusData.status === 'cancelled') {
+                activeSOS = null;
+                sosState = 'idle';
+                clearActiveSOSSession();
+                document.getElementById('trackingCard').style.display='none';
+                document.getElementById('sosHint').textContent='Tap to dispatch emergency services';
+                return;
+            }
+        }
+
+        if (sosState === 'enroute') {
+            revealTrackingCard();
+            hydrateTrackingDetailsFromActiveSOS();
+        }
+
+        if (sosState === 'enroute') {
+            initLiveMap();
+        }
     }
 
     // ═══════════════════════════════════════════
@@ -1455,6 +2522,8 @@
     function closeAddContactModal() {
         document.getElementById('addContactModal').classList.remove('open');
     }
+
+    restoreSOSSessionIfAny();
 
     function saveNewContact() {
         const name = document.getElementById('modalContactName').value.trim();
@@ -1604,7 +2673,6 @@
     // ═══════════════════════════════════════════
     // HOSPITAL SEARCH & MANAGEMENT
     // ═══════════════════════════════════════════
-    let currentUserLocation = { lat: 19.9975, lng: 73.7898 }; // Default Nashik
     let allHospitals = [];
     let filteredHospitals = [];
 
@@ -1627,6 +2695,116 @@
         return R * c;
     }
 
+    function normalizeHospitalRecord(hospital) {
+        const lat = Number(hospital?.location?.lat);
+        const lng = Number(hospital?.location?.lng);
+        const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+        const distanceValue = hasCoords
+            ? calculateDistance(currentUserLocation.lat, currentUserLocation.lng, lat, lng)
+            : Number.POSITIVE_INFINITY;
+        const formattedDistance = Number.isFinite(distanceValue) ? parseFloat(distanceValue.toFixed(1)) : 999;
+
+        const facilities = hospital?.facilities || {};
+        const icuBeds = Number.isFinite(Number(facilities.icuBeds)) ? Number(facilities.icuBeds) : 0;
+        const generalBeds = Number.isFinite(Number(facilities.generalBeds)) ? Number(facilities.generalBeds) : 0;
+        const lowBeds = Number.isFinite(Number(facilities.lowBeds)) ? Number(facilities.lowBeds) : 0;
+        const totalBeds = Number.isFinite(Number(facilities.totalBeds)) ? Number(facilities.totalBeds) : (icuBeds + generalBeds + lowBeds);
+
+        return {
+            ...hospital,
+            type: hospital?.type || 'General',
+            specialties: Array.isArray(hospital?.specialties) && hospital.specialties.length ? hospital.specialties : ['Emergency Care'],
+            location: {
+                lat,
+                lng,
+                address: hospital?.location?.address || 'Address unavailable',
+                city: hospital?.location?.city || '',
+                state: hospital?.location?.state || ''
+            },
+            facilities: { icuBeds, generalBeds, lowBeds, totalBeds },
+            services: {
+                opd: hospital?.services?.opd || 'Open',
+                lab: hospital?.services?.lab || 'Available',
+                bloodBank: hospital?.services?.bloodBank || 'Unknown',
+                parking: hospital?.services?.parking || 'Unknown'
+            },
+            phoneNumber: hospital?.phoneNumber || 'N/A',
+            rating: Number.isFinite(Number(hospital?.rating)) ? Number(hospital.rating) : 4.0,
+            distance: formattedDistance,
+            driveTime: hospital?.driveTime || `${Math.max(2, Math.ceil((Number.isFinite(distanceValue) ? distanceValue : 12) * 1.5))} min drive`
+        };
+    }
+
+    async function fetchNearbyHospitalsFromOSM(radiusKm = 20) {
+        const lat = Number(currentUserLocation?.lat);
+        const lng = Number(currentUserLocation?.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return [];
+
+        const latDelta = Math.max(0.08, radiusKm / 111);
+        const lngDelta = Math.max(0.08, radiusKm / (111 * Math.max(Math.cos(lat * Math.PI / 180), 0.2)));
+        const left = lng - lngDelta;
+        const right = lng + lngDelta;
+        const top = lat + latDelta;
+        const bottom = lat - latDelta;
+
+        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent('hospital')}&bounded=1&limit=30&viewbox=${left},${top},${right},${bottom}`;
+        const response = await fetch(url, {
+            headers: {
+                Accept: 'application/json'
+            }
+        });
+        if (!response.ok) return [];
+
+        const places = await response.json();
+        if (!Array.isArray(places) || !places.length) return [];
+
+        return places
+            .map((place) => {
+                const pLat = Number(place.lat);
+                const pLng = Number(place.lon);
+                if (!Number.isFinite(pLat) || !Number.isFinite(pLng)) return null;
+
+                const distance = calculateDistance(lat, lng, pLat, pLng);
+                if (!Number.isFinite(distance)) return null;
+
+                const displayName = String(place.display_name || '').trim();
+                const parsedName = displayName ? displayName.split(',')[0].trim() : '';
+
+                return normalizeHospitalRecord({
+                    name: parsedName || 'Nearby Hospital',
+                    type: 'General',
+                    specialties: ['Emergency Care'],
+                    location: {
+                        lat: pLat,
+                        lng: pLng,
+                        address: displayName || 'Address unavailable',
+                        city: '',
+                        state: ''
+                    },
+                    facilities: {
+                        icuBeds: 0,
+                        generalBeds: 0,
+                        lowBeds: 0,
+                        totalBeds: 0
+                    },
+                    services: {
+                        opd: 'Unknown',
+                        lab: 'Unknown',
+                        bloodBank: 'Unknown',
+                        parking: 'Unknown'
+                    },
+                    operatingHours: 'Unknown',
+                    phoneNumber: 'N/A',
+                    rating: 4.0,
+                    distance,
+                    driveTime: `${Math.max(2, Math.ceil(distance * 1.7))} min drive`
+                });
+            })
+            .filter(Boolean)
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, 20);
+    }
+
     // Get user location and fetch nearby hospitals
     function initializeHospitals() {
         if (navigator.geolocation) {
@@ -1647,36 +2825,61 @@
 
     // Fetch nearby hospitals
     async function fetchNearbyHospitals(radius = 15) {
+        const radiusSequence = [radius, 40, 100, 250];
         try {
-            // Try to fetch from backend API
-            const response = await fetch(
-                `${API_BASE_URL}/api/hospitals/nearby?lat=${currentUserLocation.lat}&lng=${currentUserLocation.lng}&radius=${radius}`
-            );
-            
-            if (response.ok) {
+            for (const currentRadius of radiusSequence) {
+                const response = await fetch(
+                    `${API_BASE_URL}/api/hospitals/nearby?lat=${currentUserLocation.lat}&lng=${currentUserLocation.lng}&radius=${currentRadius}`
+                );
+
+                if (!response.ok) continue;
+
                 const data = await response.json();
-                if (data.success) {
-                    allHospitals = data.hospitals;
+                if (data.success && Array.isArray(data.hospitals) && data.hospitals.length) {
+                    allHospitals = data.hospitals
+                        .map(normalizeHospitalRecord)
+                        .sort((a, b) => a.distance - b.distance);
                     filteredHospitals = [...allHospitals];
-                    updateHospitalStats(data.stats);
+
+                    const stats = {
+                        nearby: allHospitals.length,
+                        icuBeds: allHospitals.reduce((sum, h) => sum + (h.facilities?.icuBeds || 0), 0),
+                        lowBeds: allHospitals.filter(h => (h.facilities?.icuBeds || 0) <= 3).length,
+                        full: allHospitals.filter(h => (h.facilities?.icuBeds || 0) === 0).length
+                    };
+
+                    updateHospitalStats(stats);
                     renderHospitalList();
                     return;
                 }
+            }
+
+            // Keep results location-true: fallback to OSM nearby search around citizen GPS.
+            const osmNearby = await fetchNearbyHospitalsFromOSM(Math.max(radius, 20));
+            if (osmNearby.length) {
+                allHospitals = osmNearby;
+                filteredHospitals = [...allHospitals];
+
+                const stats = {
+                    nearby: allHospitals.length,
+                    icuBeds: allHospitals.reduce((sum, h) => sum + (h.facilities?.icuBeds || 0), 0),
+                    lowBeds: allHospitals.filter(h => (h.facilities?.icuBeds || 0) <= 3).length,
+                    full: allHospitals.filter(h => (h.facilities?.icuBeds || 0) === 0).length
+                };
+
+                updateHospitalStats(stats);
+                renderHospitalList();
+                return;
             }
         } catch (error) {
             console.log('Backend not available, using mock data');
         }
 
         // Use mock data if backend not available
-        const hospitalsWithDistance = mockHospitalData.map(hospital => {
-            const distance = calculateDistance(currentUserLocation.lat, currentUserLocation.lng, hospital.location.lat, hospital.location.lng);
-            const driveTime = Math.ceil(distance * 1.5);
-            return {
-                ...hospital,
-                distance: parseFloat(distance.toFixed(1)),
-                driveTime: `${driveTime} min drive`
-            };
-        }).filter(h => h.distance <= radius).sort((a, b) => a.distance - b.distance);
+        const hospitalsWithDistance = mockHospitalData
+            .map(normalizeHospitalRecord)
+            .filter(h => h.distance <= 250)
+            .sort((a, b) => a.distance - b.distance);
 
         allHospitals = hospitalsWithDistance;
         filteredHospitals = [...allHospitals];

@@ -2,11 +2,22 @@
 backend/node_modules/
 
 # Environment secrets
+.env
 backend/.env
 
 # Logs
 *.log
 npm-debug.log*
+
+# Temporary debug/check files
+backend/tmp_*.js
+backend/check_*.js
+backend/db_check.js
+backend/dbcheck.js
+
+# Data builder intermediate outputs
+backend/.mumbai-hospitals-checkpoint.json
+backend/mumbai-hospitals-stationwise-report.json
 
 # OS/editor
 .DS_Store

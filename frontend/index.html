@@ -296,6 +296,69 @@
             margin-top: 4px;
         }
 
+        .session-banner {
+            width: 100%;
+            max-width: 440px;
+            margin: 0 auto 18px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(2,132,199,0.16);
+            background: linear-gradient(135deg, rgba(2,132,199,0.08), rgba(22,163,74,0.06));
+            box-shadow: 0 4px 18px rgba(2,132,199,0.08);
+        }
+
+        .session-banner-title {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: 0.6px;
+            margin-bottom: 4px;
+        }
+
+        .session-banner-sub {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+
+        .session-banner-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .session-btn {
+            flex: 1;
+            min-width: 130px;
+            border: none;
+            border-radius: 12px;
+            padding: 12px 14px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .session-btn.primary {
+            background: linear-gradient(135deg, #0284c7, #06b6d4);
+            color: white;
+            box-shadow: 0 4px 16px rgba(2,132,199,0.24);
+        }
+
+        .session-btn.secondary {
+            background: white;
+            color: var(--red);
+            border: 1px solid rgba(225,29,72,0.2);
+        }
+
+        .session-btn:hover {
+            transform: translateY(-1px);
+        }
+
         /* Role selector */
         .role-selector {
             width: 100%;
@@ -862,9 +925,18 @@
             </div>
         </div>
         <p class="brand-tagline">Real-Time Emergency Ambulance Network</p>
+
+        <div id="sessionBanner" class="session-banner hidden">
+            <div class="session-banner-title" id="sessionBannerTitle">Welcome back</div>
+            <div class="session-banner-sub" id="sessionBannerSub">You already have a saved session on this device.</div>
+            <div class="session-banner-actions">
+                <button class="session-btn primary" id="sessionContinueBtn" type="button">CONTINUE</button>
+                <button class="session-btn secondary" type="button" onclick="logoutUser()">LOGOUT</button>
+            </div>
+        </div>
     </div>
 
-    <div class="role-selector">
+    <div class="role-selector" id="roleSelector">
         <div class="role-pill citizen active" id="citizenPill" onclick="switchRole('citizen')">
             <div class="role-icon">🧑‍⚕️</div>
             <div class="role-label">CITIZEN</div>
@@ -1004,26 +1076,26 @@
                     <p class="panel-sub">Access your ambulance dashboard</p>
 
                     <div class="field-group">
-                        <label class="field-label">Ambulance ID</label>
+                        <label class="field-label">Driver Login ID</label>
                         <div class="field-wrap">
                             <span class="field-icon">🚑</span>
-                            <input class="field-input" id="driverAmbulanceId" type="text" placeholder="e.g. AMB-MH-2847" style="letter-spacing:2px; text-transform:uppercase;">
-                            <span class="driver-id-badge">FLEET ID</span>
+                            <input class="field-input" id="driverAmbulanceId" type="text" placeholder="e.g. drv101">
+                            <span class="driver-id-badge">LOGIN</span>
                         </div>
                     </div>
 
                     <div class="field-group">
-                        <label class="field-label">Phone Number</label>
-                        <div class="phone-field">
-                            <div class="country-prefix">+91</div>
-                            <input class="field-input" id="driverPhone" type="tel" placeholder="Registered number" maxlength="10">
+                        <label class="field-label">Password</label>
+                        <div class="field-wrap">
+                            <span class="field-icon">🔐</span>
+                            <input class="field-input" id="driverPhone" type="password" placeholder="Enter password">
                         </div>
                     </div>
 
                     <div class="dummy-cred-box">
-                        <div class="dummy-cred-title">DUMMY CREW LOGIN (TEST MODE)</div>
-                        <div class="dummy-cred-row"><span>Ambulance ID</span><span>AMB-MH-2847</span></div>
-                        <div class="dummy-cred-row"><span>Phone</span><span>9876543210</span></div>
+                        <div class="dummy-cred-title">MUMBAI SEEDED DRIVER LOGIN</div>
+                        <div class="dummy-cred-row"><span>Login ID</span><span>drv101</span></div>
+                        <div class="dummy-cred-row"><span>Password</span><span>Driver@123</span></div>
                         <button class="btn-dummy-fill" onclick="fillDummyDriverCredentials()">USE DUMMY CREDENTIALS</button>
                     </div>
 
@@ -1165,16 +1237,149 @@
     let sirenPlayed = false;
     document.addEventListener('click', () => { if (!sirenPlayed) { sirenPlayed = true; playSiren(); } }, { once: true });
 
-    const apiBase = window.__API_BASE_URL__ || ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'http://localhost:5000' : 'https://jeevanconnect-real-time-emergency.onrender.com');
+    const FALLBACK_REMOTE_API = 'https://jeevanconnect-real-time-emergency.onrender.com';
+    const savedApiBase = (() => {
+        try {
+            return localStorage.getItem('apiBaseUrl') || '';
+        } catch (_) {
+            return '';
+        }
+    })();
+    const apiBase = window.__API_BASE_URL__ || savedApiBase || 'http://localhost:5000';
+    const apiBaseCandidates = Array.from(new Set([
+        apiBase,
+        'http://localhost:5000',
+        FALLBACK_REMOTE_API
+    ].filter(Boolean)));
+
+    function rememberApiBase(baseUrl) {
+        if (!baseUrl) return;
+        try {
+            localStorage.setItem('apiBaseUrl', baseUrl);
+        } catch (_) {}
+    }
+
     const socketScript = document.createElement('script');
     socketScript.src = apiBase + '/socket.io/socket.io.js';
     document.head.appendChild(socketScript);
 
-    async function warmBackend() {
+    function getStoredJson(key, fallback = null) {
         try {
-            await fetch(`${apiBase}/health`, { method: 'GET', cache: 'no-store' });
+            const raw = localStorage.getItem(key);
+            return raw ? JSON.parse(raw) : fallback;
         } catch (_) {
-            // Ignore warm-up failures; user actions will retry with full error handling.
+            return fallback;
+        }
+    }
+
+    function clearAuthStorage() {
+        ['token', 'user', 'driver', 'authRole', 'driverLoginMode'].forEach(key => localStorage.removeItem(key));
+    }
+
+    async function restoreSavedSession() {
+        const token = localStorage.getItem('token');
+        const authRole = localStorage.getItem('authRole');
+        const storedUser = getStoredJson('user');
+        const storedDriver = getStoredJson('driver');
+
+        if (!token) {
+            const sessionBanner = document.getElementById('sessionBanner');
+            const sessionTitle = document.getElementById('sessionBannerTitle');
+            const sessionSub = document.getElementById('sessionBannerSub');
+            const sessionContinueBtn = document.getElementById('sessionContinueBtn');
+
+            if (authRole === 'driver' && storedDriver) {
+                sessionTitle.textContent = `Driver session saved for ${storedDriver.name || 'crew member'}`;
+                sessionSub.textContent = 'Continue to the driver console or log out to switch accounts.';
+                sessionContinueBtn.textContent = 'OPEN DRIVER DASHBOARD';
+                sessionContinueBtn.onclick = () => { window.location.href = 'ambulance-driver-dashboard.html'; };
+            } else if (authRole === 'citizen' && storedUser) {
+                sessionTitle.textContent = `Welcome back, ${storedUser.name || 'citizen'}`;
+                sessionSub.textContent = 'Your login is remembered on this device, so OTP is no longer needed until you log out.';
+                sessionContinueBtn.textContent = 'OPEN CITIZEN DASHBOARD';
+                sessionContinueBtn.onclick = () => { window.location.href = 'citizen-dashboard.html'; };
+            } else {
+                return false;
+            }
+
+            document.getElementById('roleSelector').classList.add('hidden');
+            document.getElementById('authCard').classList.add('hidden');
+            sessionBanner.classList.remove('hidden');
+            return true;
+        }
+
+        if (!token) {
+            return false;
+        }
+
+        try {
+            const response = await fetch(`${apiBase}/api/auth/me`, {
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data.success || !data.user) {
+                clearAuthStorage();
+                return false;
+            }
+
+            const sessionBanner = document.getElementById('sessionBanner');
+            const sessionTitle = document.getElementById('sessionBannerTitle');
+            const sessionSub = document.getElementById('sessionBannerSub');
+            const sessionContinueBtn = document.getElementById('sessionContinueBtn');
+
+            if (data.user.role === 'driver') {
+                const driverInfo = getStoredJson('driver', data.user);
+                localStorage.setItem('driver', JSON.stringify(driverInfo));
+                localStorage.setItem('authRole', 'driver');
+                sessionTitle.textContent = `Driver session saved for ${driverInfo.name || data.user.name || 'crew member'}`;
+                sessionSub.textContent = 'Continue to the driver console or log out to switch accounts.';
+                sessionContinueBtn.textContent = 'OPEN DRIVER DASHBOARD';
+                sessionContinueBtn.onclick = () => { window.location.href = 'ambulance-driver-dashboard.html'; };
+            } else {
+                const citizenInfo = getStoredJson('user', data.user);
+                localStorage.setItem('user', JSON.stringify(citizenInfo));
+                localStorage.setItem('authRole', 'citizen');
+                sessionTitle.textContent = `Welcome back, ${citizenInfo.name || data.user.name || 'citizen'}`;
+                sessionSub.textContent = 'Your login is remembered on this device, so OTP is no longer needed until you log out.';
+                sessionContinueBtn.textContent = 'OPEN CITIZEN DASHBOARD';
+                sessionContinueBtn.onclick = () => { window.location.href = 'citizen-dashboard.html'; };
+            }
+
+            document.getElementById('roleSelector').classList.add('hidden');
+            document.getElementById('authCard').classList.add('hidden');
+            sessionBanner.classList.remove('hidden');
+            return true;
+        } catch (error) {
+            clearAuthStorage();
+            return false;
+        }
+    }
+
+    function logoutUser() {
+        clearAuthStorage();
+        localStorage.removeItem('driverLoginMode');
+        document.getElementById('sessionBanner').classList.add('hidden');
+        document.getElementById('roleSelector').classList.remove('hidden');
+        document.getElementById('authCard').classList.remove('hidden');
+        showTab('login');
+        showDriverTab('driverLogin');
+        document.getElementById('loginPhoneStatus').textContent = 'Session cleared. Log in again to continue.';
+        document.getElementById('loginPhoneStatus').className = 'status-note';
+    }
+
+    async function warmBackend() {
+        for (const base of apiBaseCandidates) {
+            try {
+                await fetch(`${base}/health`, { method: 'GET', cache: 'no-store' });
+                rememberApiBase(base);
+                break;
+            } catch (_) {
+                // Keep trying candidates.
+            }
         }
     }
 
@@ -1215,10 +1420,25 @@
         throw lastError || new Error('Network request failed');
     }
 
+    async function fetchJsonAcrossApiBases(path, options = {}, retries = 0, timeoutMs = 10000) {
+        let lastError = null;
+        for (const base of apiBaseCandidates) {
+            try {
+                const data = await fetchJsonWithRetry(`${base}${path}`, options, retries, timeoutMs);
+                rememberApiBase(base);
+                return { data, base };
+            } catch (error) {
+                lastError = error;
+            }
+        }
+        throw lastError || new Error('All backend endpoints failed');
+    }
+
     warmBackend();
+    restoreSavedSession();
     const DUMMY_DRIVER_CREDS = [
-        { ambulanceId: 'AMB-MH-2847', phone: '9876543210', name: 'Rajesh Kumar', vehicle: 'MH-15-AB-4821' },
-        { ambulanceId: 'AMB-MH-5103', phone: '9988776655', name: 'Priya Nair', vehicle: 'MH-15-CD-5103' }
+        { loginId: 'drv101', password: 'Driver@123', name: 'Aarav Patil', ambulanceId: 'A101' },
+        { loginId: 'drv102', password: 'Driver@123', name: 'Rohan Naik', ambulanceId: 'A102' }
     ];
     let currentRole = 'citizen';
 
@@ -1322,13 +1542,14 @@
                 // Store token
                 localStorage.setItem('token', data.token);
                 localStorage.setItem('user', JSON.stringify(data.user));
+                localStorage.setItem('authRole', 'citizen');
 
                 // Connect to real-time socket
                 const socket = io(apiBase);
                 window.socket = socket;
 
                 // Redirect to dashboard
-                window.location.href = 'citizen-dashboard-light.html';
+                window.location.href = 'citizen-dashboard.html';
             } else {
                 alert('❌ ' + data.message);
             }
@@ -1416,72 +1637,77 @@
     }
 
     function fillDummyDriverCredentials() {
-        document.getElementById('driverAmbulanceId').value = DUMMY_DRIVER_CREDS[0].ambulanceId;
-        document.getElementById('driverPhone').value = DUMMY_DRIVER_CREDS[0].phone;
+        document.getElementById('driverAmbulanceId').value = DUMMY_DRIVER_CREDS[0].loginId;
+        document.getElementById('driverPhone').value = DUMMY_DRIVER_CREDS[0].password;
         document.getElementById('driverLoginStatus').textContent = 'Dummy credentials filled. Tap LOGIN TO DASHBOARD.';
         document.getElementById('driverLoginStatus').className = 'status-note success';
     }
 
-    function loginDriver() {
-        const ambulanceId = document.getElementById('driverAmbulanceId').value.trim().toUpperCase();
-        const phone = document.getElementById('driverPhone').value.trim();
+    async function loginDriver() {
+        const loginInput = document.getElementById('driverAmbulanceId').value.trim();
+        const passwordInput = document.getElementById('driverPhone').value.trim();
         const statusEl = document.getElementById('driverLoginStatus');
 
-        if (!ambulanceId || !phone || phone.length !== 10) {
-            statusEl.textContent = 'Please enter a valid Ambulance ID and 10-digit phone number.';
+        if (!loginInput || !passwordInput) {
+            statusEl.textContent = 'Please enter Login ID and Password.';
             statusEl.className = 'status-note error';
             return;
         }
 
-        const dummyMatch = DUMMY_DRIVER_CREDS.find(c => c.ambulanceId === ambulanceId && c.phone === phone);
+        const dummyMatch = DUMMY_DRIVER_CREDS.find(c => c.loginId === loginInput.toLowerCase() && c.password === passwordInput);
         if (dummyMatch) {
             localStorage.setItem('driver', JSON.stringify({
                 id: dummyMatch.ambulanceId,
                 name: dummyMatch.name,
                 ambulanceId: dummyMatch.ambulanceId,
                 vehicleType: 'Basic Life Support',
-                vehicle: dummyMatch.vehicle,
-                phone
+                loginId: dummyMatch.loginId,
+                status: 'available'
             }));
+            localStorage.setItem('authRole', 'driver');
             localStorage.setItem('driverLoginMode', 'dummy');
             window.location.href = 'ambulance-driver-dashboard.html';
             return;
         }
 
-        fetch(`${apiBase}/api/driver/login`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                ambulanceId,
-                phone
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
+        const isLegacyFleetLogin = loginInput.toUpperCase().startsWith('AMB-') && /^\d{10}$/.test(passwordInput);
+        const requestPayload = isLegacyFleetLogin
+            ? { ambulanceId: loginInput.toUpperCase(), phone: passwordInput }
+            : { loginId: loginInput.toLowerCase(), password: passwordInput };
+
+        try {
+            const { data, base } = await fetchJsonAcrossApiBases('/api/driver/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestPayload)
+            }, 1, 12000);
+
             if (data.success) {
+                rememberApiBase(base);
                 localStorage.setItem('token', data.token);
                 localStorage.setItem('driver', JSON.stringify({
-                    ...(data.driver || {}),
-                    ambulanceId,
-                    phone
+                    ...(data.driver || {})
                 }));
-                const socket = io(apiBase);
-                window.socket = socket;
-                socket.emit('driver-online', { driverId: data.driver.id });
+                localStorage.setItem('authRole', 'driver');
+                if (typeof io === 'function') {
+                    const socket = io(base);
+                    window.socket = socket;
+                    socket.emit('driver-online', { driverId: data.driver.id });
+                }
 
                 window.location.href = 'ambulance-driver-dashboard.html';
-            } else {
-                statusEl.textContent = 'Login failed: ' + data.message;
-                statusEl.className = 'status-note error';
+                return;
             }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            statusEl.textContent = 'Network issue. Try dummy credentials or restart backend.';
+
+            statusEl.textContent = 'Login failed: ' + data.message;
             statusEl.className = 'status-note error';
-        });
+        } catch (error) {
+            console.error('Error:', error);
+            statusEl.textContent = 'Network issue. Trying localhost and Render failed. Use dummy or restart backend.';
+            statusEl.className = 'status-note error';
+        }
     }
 
     function showDriverTab(tab) {
@@ -1514,11 +1740,12 @@
         statusEl.className = 'status-note';
 
         try {
-            const data = await fetchJsonWithRetry(`${apiBase}/api/auth/check-phone`, {
+            const { data, base } = await fetchJsonAcrossApiBases('/api/auth/check-phone', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone, type })
             }, 1, 12000);
+            rememberApiBase(base);
 
             if (!data.success) {
                 statusEl.textContent = data.message || 'Unable to verify phone';
@@ -1547,7 +1774,7 @@
             statusEl.className = 'status-note error';
             return false;
         } catch (error) {
-            statusEl.textContent = `Network error while checking phone. (${error.message || 'Please retry'})`;
+            statusEl.textContent = `Network error while checking phone. Backend not reachable on configured endpoints. (${error.message || 'Please retry'})`;
             statusEl.className = 'status-note error';
             return false;
         }
