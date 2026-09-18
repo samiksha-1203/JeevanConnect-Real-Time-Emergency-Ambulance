@@ -1240,7 +1240,8 @@
     const FALLBACK_REMOTE_API = 'https://jeevanconnect-real-time-emergency.onrender.com';
     const savedApiBase = (() => {
         try {
-            return localStorage.getItem('apiBaseUrl') || '';
+            const saved = localStorage.getItem('apiBaseUrl') || '';
+            return saved === FALLBACK_REMOTE_API ? '' : saved;
         } catch (_) {
             return '';
         }
@@ -1253,7 +1254,7 @@
     ].filter(Boolean)));
 
     function rememberApiBase(baseUrl) {
-        if (!baseUrl) return;
+        if (!baseUrl || baseUrl === FALLBACK_REMOTE_API) return;
         try {
             localStorage.setItem('apiBaseUrl', baseUrl);
         } catch (_) {}

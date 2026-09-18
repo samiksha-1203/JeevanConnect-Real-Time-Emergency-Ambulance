@@ -257,6 +257,9 @@
         .hosp-search-input:focus{border-color:var(--amber);background:white;box-shadow:0 0 0 3px rgba(217,119,6,0.1)}
         .hosp-filter-btn { padding:9px 12px; border:1.5px solid #e2e8f0; border-radius:10px; background:white; font-size:13px; cursor:pointer; color:var(--muted); transition:all 0.2s; }
         .hosp-filter-btn:hover{border-color:var(--amber);color:var(--amber)}
+        .hospital-type-filters { display:flex; gap:8px; padding:10px 18px; overflow-x:auto; border-bottom:1px solid #f1f5f9; }
+        .hospital-type-filter { flex:0 0 auto; padding:8px 12px; border:1px solid #dbe4ee; border-radius:999px; background:#fff; color:var(--muted); font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap; }
+        .hospital-type-filter.active, .hospital-type-filter:hover { background:#e0f2fe; border-color:#0284c7; color:#075985; }
         .hosp-stats-row { display:flex; gap:1px; background:#f1f5f9; border-bottom:1px solid #f1f5f9; }
         .hosp-stat { flex:1; padding:12px 10px; background:white; text-align:center; }
         .hosp-stat-val { font-family:'Oxanium',sans-serif; font-size:20px; font-weight:800; }
@@ -449,7 +452,7 @@
             <div class="q-card amber" id="qcard-hosp" onclick="togglePanel('hospital')">
                 <span class="q-icon">🏥</span>
                 <div class="q-label">Find Hospital</div>
-                <div class="q-sub">ICU beds & availability</div>
+                <div class="q-sub">Hospitals near your location</div>
             </div>
         </div>
 
@@ -736,98 +739,24 @@
                     <div class="panel-header-icon amber">🏥</div>
                     <div>
                         <div class="panel-title-text">Find Hospital</div>
-                        <div class="panel-title-sub">ICU beds & real-time availability</div>
+                        <div class="panel-title-sub">Hospitals near your location</div>
                     </div>
                 </div>
                 <div class="panel-close" onclick="closePanel('hospital')">✕</div>
             </div>
 
             <div class="hosp-search-bar">
-                <input class="hosp-search-input" type="text" placeholder="🔍 Search hospital or area...">
-                <button class="hosp-filter-btn">⚙️ Filter</button>
+                <input class="hosp-search-input" type="text" placeholder="🔍 Search hospital or area..." oninput="searchHospitals(this.value)">
+            </div>
+            <div class="hospital-type-filters" role="group" aria-label="Hospital type filters">
+                <button type="button" class="hospital-type-filter active" data-hospital-type="all" onclick="filterHospitalsByType('all', this)">All</button>
+                <button type="button" class="hospital-type-filter" data-hospital-type="Government" onclick="filterHospitalsByType('Government', this)">Government</button>
+                <button type="button" class="hospital-type-filter" data-hospital-type="Private" onclick="filterHospitalsByType('Private', this)">Private</button>
+                <button type="button" class="hospital-type-filter" data-hospital-type="Trust" onclick="filterHospitalsByType('Trust', this)">Semi-Government / Trust</button>
+                <button type="button" class="hospital-type-filter" data-hospital-type="Unknown" onclick="filterHospitalsByType('Unknown', this)">Ownership Unverified</button>
             </div>
 
-            <div class="hosp-stats-row">
-                <div class="hosp-stat"><div class="hosp-stat-val green">8</div><div class="hosp-stat-label">Nearby</div></div>
-                <div class="hosp-stat"><div class="hosp-stat-val cyan">47</div><div class="hosp-stat-label">ICU Beds</div></div>
-                <div class="hosp-stat"><div class="hosp-stat-val amber">3</div><div class="hosp-stat-label">Low Beds</div></div>
-                <div class="hosp-stat"><div class="hosp-stat-val red">1</div><div class="hosp-stat-label">Full</div></div>
-            </div>
-
-            <div class="hosp-list">
-                <div class="hosp-card" onclick="showToast('🗺️ Opening directions to Civil Hospital...')">
-                    <div class="hosp-card-top">
-                        <div class="hosp-badge green">🏥</div>
-                        <div class="hosp-card-info">
-                            <div class="hosp-card-name">Civil Hospital, Nashik</div>
-                            <div class="hosp-card-type">Government · Trauma Centre · 24/7</div>
-                            <div class="hosp-card-dist">📍 1.2 km · ~4 min drive</div>
-                        </div>
-                        <div class="hosp-card-right"><span class="hosp-icu good">14</span><span class="hosp-icu-label">ICU beds</span></div>
-                    </div>
-                    <div class="hosp-card-bottom">
-                        <div class="hosp-chip avail">🩺 OPD<span>Open</span></div>
-                        <div class="hosp-chip avail">🔬 Lab<span>24/7</span></div>
-                        <div class="hosp-chip avail">🩸 Blood<span>Available</span></div>
-                        <div class="hosp-chip avail">🅿️ Park<span>Free</span></div>
-                    </div>
-                </div>
-
-                <div class="hosp-card" onclick="showToast('🗺️ Opening directions to Wockhardt...')">
-                    <div class="hosp-card-top">
-                        <div class="hosp-badge amber">🏨</div>
-                        <div class="hosp-card-info">
-                            <div class="hosp-card-name">Wockhardt Hospital</div>
-                            <div class="hosp-card-type">Private · Multi-Specialty · 24/7</div>
-                            <div class="hosp-card-dist">📍 2.8 km · ~8 min drive</div>
-                        </div>
-                        <div class="hosp-card-right"><span class="hosp-icu low">3</span><span class="hosp-icu-label">ICU beds</span></div>
-                    </div>
-                    <div class="hosp-card-bottom">
-                        <div class="hosp-chip avail">🩺 OPD<span>Open</span></div>
-                        <div class="hosp-chip busy">🔬 Lab<span>Busy</span></div>
-                        <div class="hosp-chip avail">🩸 Blood<span>Available</span></div>
-                        <div class="hosp-chip busy">🅿️ Park<span>Paid</span></div>
-                    </div>
-                </div>
-
-                <div class="hosp-card" onclick="showToast('🗺️ Opening directions to District Hospital...')">
-                    <div class="hosp-card-top">
-                        <div class="hosp-badge green">🏥</div>
-                        <div class="hosp-card-info">
-                            <div class="hosp-card-name">Nashik District Hospital</div>
-                            <div class="hosp-card-type">Government · General · 24/7</div>
-                            <div class="hosp-card-dist">📍 4.1 km · ~12 min drive</div>
-                        </div>
-                        <div class="hosp-card-right"><span class="hosp-icu good">8</span><span class="hosp-icu-label">ICU beds</span></div>
-                    </div>
-                    <div class="hosp-card-bottom">
-                        <div class="hosp-chip avail">🩺 OPD<span>Open</span></div>
-                        <div class="hosp-chip avail">🔬 Lab<span>24/7</span></div>
-                        <div class="hosp-chip busy">🩸 Blood<span>Low</span></div>
-                        <div class="hosp-chip avail">🅿️ Park<span>Free</span></div>
-                    </div>
-                </div>
-
-                <div class="hosp-card" onclick="showToast('🗺️ Opening directions to Ratnadeep...')">
-                    <div class="hosp-card-top">
-                        <div class="hosp-badge red">🚨</div>
-                        <div class="hosp-card-info">
-                            <div class="hosp-card-name">Ratnadeep Hospital</div>
-                            <div class="hosp-card-type">Private · Cardiac Specialty</div>
-                            <div class="hosp-card-dist">📍 5.3 km · ~15 min drive</div>
-                        </div>
-                        <div class="hosp-card-right"><span class="hosp-icu full">0</span><span class="hosp-icu-label">ICU beds</span></div>
-                    </div>
-                    <div class="hosp-card-bottom">
-                        <div class="hosp-chip full">🩺 OPD<span>Closed</span></div>
-                        <div class="hosp-chip avail">🔬 Lab<span>Open</span></div>
-                        <div class="hosp-chip avail">🩸 Blood<span>Available</span></div>
-                        <div class="hosp-chip busy">🅿️ Park<span>Paid</span></div>
-                    </div>
-                </div>
-            </div>
-            <button class="hosp-nav-btn" onclick="showToast('🗺️ Opening full hospital map...')">🗺️ VIEW ALL ON MAP</button>
+            <div class="hosp-list"></div>
         </div>
         </div><!-- /overlay-hospital -->
 
@@ -862,6 +791,8 @@
             <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🚗</span><div class="etype-label">Road Accident (Minor)</div></div>
             <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🧍</span><div class="etype-label">Fall / Head Injury</div></div>
             <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🤰</span><div class="etype-label">Pregnancy Emergency / Labor</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">👁️</span><div class="etype-label">Eye Emergency / Vision Loss</div></div>
+            <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🎗️</span><div class="etype-label">Cancer Emergency</div></div>
             <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">👶</span><div class="etype-label">Child Emergency</div></div>
             <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">🧑‍🦽</span><div class="etype-label">Critical Condition</div></div>
             <div class="etype-btn" onclick="selectType(this)"><span class="etype-icon">😵</span><div class="etype-label">Unconscious / Not Responding</div></div>
@@ -872,6 +803,33 @@
         <div class="unknown-wrap" id="unknownEmergencyWrap">
             <label class="unknown-label" for="unknownEmergencyDetails">Tell us what happened</label>
             <textarea id="unknownEmergencyDetails" class="unknown-input" placeholder="Example: Person collapsed after chemical smell, breathing fast, not speaking clearly."></textarea>
+        </div>
+        <div class="hospital-choice-wrap" style="margin-top:14px;display:grid;gap:10px;">
+            <div style="font-size:11px;color:#64748b;letter-spacing:2px;text-transform:uppercase;font-weight:700;">Hospital Assignment</div>
+            <select id="hospitalAssignmentMode" style="width:100%;padding:10px 12px;border:1px solid rgba(148,163,184,0.5);border-radius:10px;background:white;">
+                <option value="nearest">Auto allot nearest hospital</option>
+                <option value="specialty">Auto allot disease-specific hospital</option>
+                <option value="manual">Select any hospital</option>
+            </select>
+            <div id="manualHospitalTools" style="display:none;gap:8px;grid-template-columns:1fr auto;">
+                <input id="manualHospitalSearch" type="search" placeholder="Search nearby hospitals..." oninput="searchManualHospitals(this.value)" style="min-width:0;padding:10px 12px;border:1px solid rgba(148,163,184,0.5);border-radius:10px;background:white;">
+                <button type="button" onclick="loadAllHospitalsForManualSelection(true)" style="padding:10px 12px;border:1px solid #0284c7;border-radius:10px;background:#e0f2fe;color:#075985;font-weight:700;white-space:nowrap;">Search all</button>
+            </div>
+            <select id="manualHospitalSelect" style="display:none;width:100%;padding:10px 12px;border:1px solid rgba(148,163,184,0.5);border-radius:10px;background:white;">
+                <option value="">Select a nearby hospital</option>
+            </select>
+        </div>
+        <div class="address-wrap" style="margin-top:14px;display:grid;gap:10px;">
+            <div style="font-size:11px;color:#64748b;letter-spacing:2px;text-transform:uppercase;font-weight:700;">Patient address</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <input id="patientBuilding" type="text" placeholder="Building / Society name" style="padding:10px 12px;border:1px solid rgba(148,163,184,0.5);border-radius:10px;">
+                <input id="patientRoomNo" type="text" placeholder="Room / Flat number" style="padding:10px 12px;border:1px solid rgba(148,163,184,0.5);border-radius:10px;">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <input id="patientLandmark" type="text" placeholder="Landmark" style="padding:10px 12px;border:1px solid rgba(148,163,184,0.5);border-radius:10px;">
+                <input id="patientArea" type="text" placeholder="Area / Locality" style="padding:10px 12px;border:1px solid rgba(148,163,184,0.5);border-radius:10px;">
+            </div>
+            <textarea id="patientFullAddress" rows="2" placeholder="Full address with building, floor, room, landmark, area" style="padding:10px 12px;border:1px solid rgba(148,163,184,0.5);border-radius:10px;resize:vertical;"></textarea>
         </div>
         <div class="sos-status" id="sosStatus" style="display:none;">
             <div class="status-icon">🚨</div>
@@ -897,7 +855,8 @@
     let googleMapsLoadPromise = null;
     let leafletLoadPromise = null;
     let googleMapsAuthFailed = false;
-    let currentUserLocation = { lat: 19.9975, lng: 73.7898 }; // Default Nashik
+    let currentUserLocation = null;
+    let hasDetectedUserLocation = false;
 
     window.gm_authFailure = function gmAuthFailureCitizenHandler() {
         googleMapsAuthFailed = true;
@@ -1015,6 +974,7 @@
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
             currentUserLocation = { lat, lng };
+            hasDetectedUserLocation = true;
             reverseGeocode(lat, lng);
             document.getElementById('locAccuracy').textContent = '± ' + Math.round(pos.coords.accuracy) + 'm';
         }, (err) => {
@@ -1083,12 +1043,34 @@
         reconnection: true,
         timeout: 5000
     }) : null;
+    let dispatchSentForSosId = null;
+
+    function emitActiveSOSDispatch() {
+        if (!dispatchSocket || !dispatchSocket.connected || !activeSOS) return false;
+        if (dispatchSentForSosId === activeSOS.sosId) return true;
+
+        dispatchSocket.emit('citizen-sos-request', {
+            ...activeSOS,
+            emergencyId: activeSOS.emergencyId || activeSOS.sosId,
+            location: { ...activeSOS.location },
+            patientAddress: activeSOS.patientAddress,
+            hospitalPreference: activeSOS.hospitalPreference,
+            emergencyContacts: activeSOS.emergencyContacts
+        });
+        dispatchSentForSosId = activeSOS.sosId;
+        return true;
+    }
 
     if (dispatchSocket) {
         dispatchSocket.on('connect', () => {
             dispatchSocket.emit('citizen-register', {
                 userId: storedCitizen.id || storedCitizen.phone || 'citizen-web'
             });
+            emitActiveSOSDispatch();
+        });
+
+        dispatchSocket.on('disconnect', () => {
+            dispatchSentForSosId = null;
         });
 
         dispatchSocket.on('sos-cancelled', ({ sosId }) => {
@@ -1115,6 +1097,21 @@
                 sosState = 'pending';
                 renderSOSModal();
             }
+        });
+
+        dispatchSocket.on('sos-save-failed', ({ sosId, message }) => {
+            if (!activeSOS || (sosId && activeSOS.sosId !== sosId)) return;
+            clearSOSAsyncTimers();
+            dispatchSentForSosId = null;
+            sosState = 'idle';
+            clearActiveSOSSession();
+            renderSOSModal();
+            showToast(`⚠️ ${message || 'SOS could not be saved. Please try again.'}`);
+        });
+
+        dispatchSocket.on('emergency-contact-alert-status', ({ sent = 0 }) => {
+            if (sent > 0) showToast(`📩 ${sent} emergency contact alert${sent === 1 ? '' : 's'} sent`);
+            else showToast('ℹ️ Emergency contacts saved. SMS provider is not configured.');
         });
 
         dispatchSocket.on('sos-assigned', (assignedData) => {
@@ -1733,11 +1730,35 @@
 
     async function sendSOSRequest() {
         if (sosState !== 'idle') return;
+        if (!hasDetectedUserLocation || !currentUserLocation) {
+            showToast('📍 Please allow location access before sending SOS.');
+            return;
+        }
         const selectedTypeEl = document.querySelector('.etype-btn.selected .etype-label');
         const emergencyType = selectedTypeEl ? selectedTypeEl.textContent : 'Emergency';
         const unknownDetailsEl = document.getElementById('unknownEmergencyDetails');
         const isUnknownEmergency = emergencyType === 'Unknown Emergency';
         const unknownDetails = unknownDetailsEl ? unknownDetailsEl.value.trim() : '';
+        const hospitalMode = document.getElementById('hospitalAssignmentMode')?.value || 'nearest';
+        const hospitalSpecialty = hospitalMode === 'specialty' ? getHospitalSpecialtyFromEmergencyType(emergencyType) : 'auto';
+        const selectedHospitalIndex = document.getElementById('manualHospitalSelect')?.value || '';
+        const selectedHospital = hospitalMode === 'manual' && selectedHospitalIndex !== ''
+            ? allHospitals.find((hospital) => `${hospital.name}|${hospital.location.lat}|${hospital.location.lng}` === selectedHospitalIndex) || null
+            : null;
+        const emergencyContactAlerts = Object.values(emergencyContacts || {}).map((contact) => ({
+            name: contact.name,
+            phone: contact.phone,
+            relation: contact.relation
+        }));
+        const patientAddress = {
+            building: document.getElementById('patientBuilding')?.value.trim() || '',
+            roomNo: document.getElementById('patientRoomNo')?.value.trim() || '',
+            landmark: document.getElementById('patientLandmark')?.value.trim() || '',
+            area: document.getElementById('patientArea')?.value.trim() || '',
+            city: 'Mumbai',
+            state: 'Maharashtra',
+            fullAddress: document.getElementById('patientFullAddress')?.value.trim() || ''
+        };
 
         if (isUnknownEmergency && !unknownDetails) {
             showToast('⚠️ Please add a short description for unknown emergency.');
@@ -1785,6 +1806,9 @@
                         location: { ...currentUserLocation },
                         description: emergencyDescription,
                         priority: dispatchPriority,
+                        patientAddress,
+                        hospitalPreference: { mode: hospitalMode, specialty: hospitalSpecialty, hospital: selectedHospital },
+                        emergencyContacts: emergencyContactAlerts,
                         medicalSnapshot: {
                             bloodGroup: storedCitizen.bloodGroup || '',
                             organDonor: medicalProfile.organDonor,
@@ -1811,6 +1835,13 @@
             emergencyType,
             createdAt: Date.now(),
             location: { ...currentUserLocation },
+            patientAddress,
+            hospitalPreference: {
+                mode: hospitalMode,
+                specialty: hospitalSpecialty,
+                hospital: selectedHospital
+            },
+            emergencyContacts: emergencyContactAlerts,
             citizenId: storedCitizen.id || storedCitizen.phone || 'citizen-web',
             citizenName: storedCitizen.name || 'Citizen SOS Request',
             citizenPhone: storedCitizen.phone || '',
@@ -1833,18 +1864,12 @@
         startDispatchStatusPolling();
 
         if (dispatchSocket && dispatchSocket.connected) {
-            dispatchSocket.emit('citizen-sos-request', {
-                ...activeSOS,
-                emergencyId: savedEmergencyId || activeSOS.sosId,
-                location: { ...currentUserLocation }
-            });
+            emitActiveSOSDispatch();
         }
-
-        // Fallback in case backend socket is unavailable.
-        const delay = 1000 + Math.random() * 4000;
-        assignTimeout = setTimeout(() => {
-            showAmbulanceAssigned();
-        }, delay);
+        // Assignment is confirmed only by the backend socket/status response.
+        if (!dispatchSocket || !dispatchSocket.connected) {
+            showToast('⏳ Connecting to dispatch center...');
+        }
     }
 
     async function showAmbulanceAssigned() {
@@ -1933,7 +1958,89 @@
             unknownWrap.classList.toggle('open', isUnknown);
             if (!isUnknown && unknownDetailsEl) unknownDetailsEl.value = '';
         }
+        const specialtyOption = document.querySelector('#hospitalAssignmentMode option[value="specialty"]');
+        if (specialtyOption) specialtyOption.textContent = `Auto allot ${selectedLabel || 'disease'}-specific hospital`;
     }
+
+    function getHospitalSpecialtyFromEmergencyType(emergencyType = '') {
+        const lower = emergencyType.toLowerCase();
+        if (/pregnancy|labor/.test(lower)) return 'women';
+        if (/child/.test(lower)) return 'child';
+        if (/cardiac|heart|chest pain/.test(lower)) return 'heart';
+        if (/breathing/.test(lower)) return 'lung';
+        if (/eye|vision/.test(lower)) return 'eye';
+        if (/cancer|tumor|oncology/.test(lower)) return 'cancer';
+        if (/trauma|injury|fracture|accident|burn|fall|bleeding/.test(lower)) return 'trauma';
+        if (/seizure|head injury|unconscious/.test(lower)) return 'trauma';
+        return 'auto';
+    }
+
+    function updateManualHospitalSelector() {
+        const selector = document.getElementById('manualHospitalSelect');
+        if (!selector) return;
+        const search = document.getElementById('manualHospitalSearch')?.value || '';
+        const searchLower = search.trim().toLowerCase();
+        const options = allHospitals.filter((hospital) => {
+            if (!searchLower) return true;
+            return hospital.name.toLowerCase().includes(searchLower)
+                || hospital.type.toLowerCase().includes(searchLower)
+                || hospital.location.address.toLowerCase().includes(searchLower);
+        });
+        selector.innerHTML = `<option value="">${options.length ? 'Select a hospital' : 'No hospitals found'}</option>`;
+        options.forEach((hospital) => {
+            const option = document.createElement('option');
+            option.value = `${hospital.name}|${hospital.location.lat}|${hospital.location.lng}`;
+            option.textContent = `${hospital.name} - ${hospital.type}`;
+            selector.appendChild(option);
+        });
+    }
+
+    function searchManualHospitals() {
+        updateManualHospitalSelector();
+    }
+
+    async function loadAllHospitalsForManualSelection(loadAll = false) {
+        const tools = document.getElementById('manualHospitalTools');
+        const selector = document.getElementById('manualHospitalSelect');
+        if (tools) tools.style.display = 'grid';
+        if (!loadAll) {
+            updateManualHospitalSelector();
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/hospitals/all`);
+            const data = await response.json();
+            if (response.ok && data.success && Array.isArray(data.hospitals) && data.hospitals.length) {
+                allHospitals = data.hospitals.map(normalizeHospitalRecord);
+            }
+        } catch (_) {
+            // Keep nearby/fallback hospitals if the complete directory is unavailable.
+        }
+        updateManualHospitalSelector();
+    }
+
+    function updateHospitalAssignmentControls() {
+        const modeSelect = document.getElementById('hospitalAssignmentMode');
+        const manualSelect = document.getElementById('manualHospitalSelect');
+        const manualTools = document.getElementById('manualHospitalTools');
+        if (!modeSelect || !manualSelect) return;
+        manualSelect.style.display = modeSelect.value === 'manual' ? 'block' : 'none';
+        if (manualTools) manualTools.style.display = modeSelect.value === 'manual' ? 'grid' : 'none';
+        if (modeSelect.value === 'manual') loadAllHospitalsForManualSelection(false);
+    }
+
+    document.addEventListener('click', (event) => {
+        const toggleButton = event.target.closest('[data-hospital-mode]');
+        if (!toggleButton) return;
+        document.querySelectorAll('.toggle-option').forEach((btn) => {
+            btn.classList.toggle('selected', btn === toggleButton);
+            btn.style.background = btn === toggleButton ? '#e0f2fe' : 'white';
+            btn.style.color = btn === toggleButton ? '#075985' : '#0f172a';
+        });
+    });
+
+    document.getElementById('hospitalAssignmentMode')?.addEventListener('change', updateHospitalAssignmentControls);
     function dispatchNow() { closeModal(); showToast('📲 SOS sent. Waiting for driver acceptance.'); }
 
     let etaInterval = null, etaMinutes = 7;
@@ -2184,7 +2291,8 @@
         if (!mapEl) return;
 
         if (!currentUserLocation || typeof currentUserLocation.lat !== 'number' || typeof currentUserLocation.lng !== 'number') {
-            currentUserLocation = { lat: 19.9975, lng: 73.7898 };
+            currentUserLocation = null;
+            hasDetectedUserLocation = false;
         }
 
         const userPos = { lat: currentUserLocation.lat, lng: currentUserLocation.lng };
@@ -2455,6 +2563,7 @@
         document.getElementById('sosHint').textContent='Tap to dispatch emergency services';
         sosState = 'idle';
         activeSOS = null;
+        dispatchSentForSosId = null;
         clearActiveSOSSession();
         clearSOSAsyncTimers();
         clearInterval(etaInterval);
@@ -2613,12 +2722,25 @@
         modal.classList.add('open');
     }
 
-    function callContact(name) {
-        showToast(`📞 Calling ${name.split(' ')[0]}...`);
+    function callContact(phone, name) {
+        const normalizedPhone = String(phone || '').trim();
+        if (!normalizedPhone) {
+            showToast('❌ Contact phone number is missing');
+            return;
+        }
+
+        window.location.href = `tel:${normalizedPhone}`;
     }
 
-    function smsContact(name) {
-        showToast(`💬 SMS sent to ${name.split(' ')[0]}`);
+    function smsContact(phone, name) {
+        const normalizedPhone = String(phone || '').trim();
+        if (!normalizedPhone) {
+            showToast('❌ Contact phone number is missing');
+            return;
+        }
+
+        const message = encodeURIComponent('This is an emergency alert from Jeevan Connect. Please contact me immediately.');
+        window.location.href = `sms:${normalizedPhone}?body=${message}`;
     }
 
     function loadEmergencyContacts() {
@@ -2658,8 +2780,8 @@
                     <div class="contact-phone">${contact.phone}</div>
                 </div>
                 <div class="contact-actions">
-                    <div class="contact-btn call" onclick="callContact('${contact.name}')">📞</div>
-                    <div class="contact-btn sms" onclick="smsContact('${contact.name}')">💬</div>
+                    <div class="contact-btn call" onclick="callContact('${contact.phone}', '${contact.name}')" title="Call">📞</div>
+                    <div class="contact-btn sms" onclick="smsContact('${contact.phone}', '${contact.name}')" title="Send SMS">💬</div>
                     <div class="contact-btn edit" onclick="editContact(${contact.id})" title="Edit">✏️</div>
                     <div class="contact-btn delete" onclick="deleteContact(${contact.id})" title="Delete">🗑️</div>
                 </div>
@@ -2675,6 +2797,7 @@
     // ═══════════════════════════════════════════
     let allHospitals = [];
     let filteredHospitals = [];
+    let activeHospitalTypeFilter = 'all';
 
     // Mock hospital data
     const mockHospitalData = [
@@ -2712,7 +2835,7 @@
 
         return {
             ...hospital,
-            type: hospital?.type || 'General',
+            type: hospital?.type || 'Unknown',
             specialties: Array.isArray(hospital?.specialties) && hospital.specialties.length ? hospital.specialties : ['Emergency Care'],
             location: {
                 lat,
@@ -2825,37 +2948,25 @@
 
     // Fetch nearby hospitals
     async function fetchNearbyHospitals(radius = 15) {
-        const radiusSequence = [radius, 40, 100, 250];
         try {
-            for (const currentRadius of radiusSequence) {
-                const response = await fetch(
-                    `${API_BASE_URL}/api/hospitals/nearby?lat=${currentUserLocation.lat}&lng=${currentUserLocation.lng}&radius=${currentRadius}`
-                );
+            const response = await fetch(
+                `${API_BASE_URL}/api/hospitals/nearby?lat=${currentUserLocation.lat}&lng=${currentUserLocation.lng}&radius=${radius}`
+            );
 
-                if (!response.ok) continue;
-
+            if (response.ok) {
                 const data = await response.json();
-                if (data.success && Array.isArray(data.hospitals) && data.hospitals.length) {
+                if (data.success && Array.isArray(data.hospitals)) {
                     allHospitals = data.hospitals
                         .map(normalizeHospitalRecord)
                         .sort((a, b) => a.distance - b.distance);
                     filteredHospitals = [...allHospitals];
-
-                    const stats = {
-                        nearby: allHospitals.length,
-                        icuBeds: allHospitals.reduce((sum, h) => sum + (h.facilities?.icuBeds || 0), 0),
-                        lowBeds: allHospitals.filter(h => (h.facilities?.icuBeds || 0) <= 3).length,
-                        full: allHospitals.filter(h => (h.facilities?.icuBeds || 0) === 0).length
-                    };
-
-                    updateHospitalStats(stats);
                     renderHospitalList();
                     return;
                 }
             }
 
             // Keep results location-true: fallback to OSM nearby search around citizen GPS.
-            const osmNearby = await fetchNearbyHospitalsFromOSM(Math.max(radius, 20));
+            const osmNearby = await fetchNearbyHospitalsFromOSM(radius);
             if (osmNearby.length) {
                 allHospitals = osmNearby;
                 filteredHospitals = [...allHospitals];
@@ -2878,7 +2989,7 @@
         // Use mock data if backend not available
         const hospitalsWithDistance = mockHospitalData
             .map(normalizeHospitalRecord)
-            .filter(h => h.distance <= 250)
+            .filter(h => h.distance <= radius)
             .sort((a, b) => a.distance - b.distance);
 
         allHospitals = hospitalsWithDistance;
@@ -2897,10 +3008,7 @@
 
     // Update hospital statistics
     function updateHospitalStats(stats) {
-        document.querySelector('.hosp-stat-val.green').textContent = stats.nearby;
-        document.querySelector('.hosp-stat-val.cyan').textContent = stats.icuBeds;
-        document.querySelector('.hosp-stat-val.amber').textContent = stats.lowBeds;
-        document.querySelector('.hosp-stat-val.red').textContent = stats.full;
+        return stats;
     }
 
     // Render hospital list
@@ -2919,9 +3027,8 @@
         }
 
         filteredHospitals.forEach(hospital => {
-            const icuStatus = hospital.facilities.icuBeds > 10 ? 'good' : hospital.facilities.icuBeds > 0 ? 'low' : 'full';
             const badgeColor = hospital.type === 'Government' ? 'green' : hospital.type === 'Private' ? 'amber' : 'cyan';
-            const badgeEmoji = hospital.type === 'Government' ? '🏥' : hospital.type === 'Private' ? '🏨' : '🏛️';
+            const badgeEmoji = hospital.type === 'Government' ? '🏥' : hospital.type === 'Private' ? '🏨' : hospital.type === 'Trust' ? '🏛️' : '🏥';
             
             const card = document.createElement('div');
             card.className = 'hosp-card';
@@ -2930,37 +3037,38 @@
             card.innerHTML = `
                 <div class="hosp-card-top">
                     <div class="hosp-badge ${badgeColor}">${badgeEmoji}</div>
-                    <div class="hosp-card-info">
+                        <div class="hosp-card-info">
                         <div class="hosp-card-name">${hospital.name}</div>
                         <div class="hosp-card-type">${hospital.type} · ${hospital.specialties.join(' · ')}</div>
                         <div class="hosp-card-dist">📍 ${hospital.distance} km · ~${hospital.driveTime}</div>
                     </div>
-                    <div class="hosp-card-right"><span class="hosp-icu ${icuStatus}">${hospital.facilities.icuBeds}</span><span class="hosp-icu-label">ICU beds</span></div>
-                </div>
-                <div class="hosp-card-bottom">
-                    <div class="hosp-chip ${hospital.services.opd === 'Open' ? 'avail' : 'full'}">🩺 OPD<span>${hospital.services.opd}</span></div>
-                    <div class="hosp-chip ${hospital.services.lab === '24/7' ? 'avail' : hospital.services.lab === 'Busy' ? 'busy' : 'avail'}">🔬 Lab<span>${hospital.services.lab}</span></div>
-                    <div class="hosp-chip ${hospital.services.bloodBank === 'Available' ? 'avail' : hospital.services.bloodBank === 'Low' ? 'busy' : 'full'}">🩸 Blood<span>${hospital.services.bloodBank}</span></div>
-                    <div class="hosp-chip ${hospital.services.parking === 'Free' ? 'avail' : 'busy'}">🅿️ Park<span>${hospital.services.parking}</span></div>
                 </div>
             `;
             hospList.appendChild(card);
         });
+        updateManualHospitalSelector();
     }
 
     // Search hospitals
     function searchHospitals(query) {
-        if (!query.trim()) {
-            filteredHospitals = [...allHospitals];
-        } else {
-            const searchLower = query.toLowerCase();
-            filteredHospitals = allHospitals.filter(h => 
-                h.name.toLowerCase().includes(searchLower) ||
-                h.specialties.some(s => s.toLowerCase().includes(searchLower)) ||
-                h.location.address.toLowerCase().includes(searchLower)
-            );
-        }
+        const searchLower = query.trim().toLowerCase();
+        filteredHospitals = allHospitals.filter((hospital) => {
+            const typeMatches = activeHospitalTypeFilter === 'all' || hospital.type === activeHospitalTypeFilter;
+            const textMatches = !searchLower
+                || hospital.name.toLowerCase().includes(searchLower)
+                || hospital.specialties.some(s => s.toLowerCase().includes(searchLower))
+                || hospital.location.address.toLowerCase().includes(searchLower);
+            return typeMatches && textMatches;
+        });
         renderHospitalList();
+    }
+
+    function filterHospitalsByType(type, button) {
+        activeHospitalTypeFilter = type || 'all';
+        document.querySelectorAll('.hospital-type-filter').forEach((filterButton) => {
+            filterButton.classList.toggle('active', filterButton === button || filterButton.dataset.hospitalType === activeHospitalTypeFilter);
+        });
+        searchHospitals(document.querySelector('.hosp-search-input')?.value || '');
     }
 
     // Open hospital details
@@ -2970,31 +3078,6 @@
                 <div style="background: linear-gradient(135deg, #e0f2fe, #e0f7ff); padding: 16px; border-radius: 12px; margin-bottom: 16px;">
                     <div style="font-size: 20px; font-weight: 700; margin-bottom: 4px;">${hospital.name}</div>
                     <div style="color: #64748b; margin-bottom: 8px;">${hospital.type} · ${hospital.specialties.join(', ')}</div>
-                    <div style="display: flex; gap: 16px; margin-top: 10px; font-size: 12px;">
-                        <div>⭐ ${hospital.rating}/5</div>
-                        <div>📍 ${hospital.distance} km</div>
-                        <div>🚗 ${hospital.driveTime}</div>
-                    </div>
-                </div>
-                
-                <div style="margin-bottom: 16px;">
-                    <div style="font-weight: 600; margin-bottom: 8px; color: #0284c7;">Facilities</div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
-                        <div>🛏️ ICU Beds: <strong>${hospital.facilities.icuBeds}</strong></div>
-                        <div>🛏️ General: <strong>${hospital.facilities.generalBeds}</strong></div>
-                        <div>🛏️ Low Beds: <strong>${hospital.facilities.lowBeds}</strong></div>
-                        <div>🛏️ Total: <strong>${hospital.facilities.totalBeds}</strong></div>
-                    </div>
-                </div>
-
-                <div style="margin-bottom: 16px;">
-                    <div style="font-weight: 600; margin-bottom: 8px; color: #0284c7;">Services</div>
-                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                        <span style="background: rgba(2, 132, 199, 0.1); padding: 4px 8px; border-radius: 6px;">🩺 OPD: ${hospital.services.opd}</span>
-                        <span style="background: rgba(2, 132, 199, 0.1); padding: 4px 8px; border-radius: 6px;">🔬 Lab: ${hospital.services.lab}</span>
-                        <span style="background: rgba(2, 132, 199, 0.1); padding: 4px 8px; border-radius: 6px;">🩸 Blood: ${hospital.services.bloodBank}</span>
-                        <span style="background: rgba(2, 132, 199, 0.1); padding: 4px 8px; border-radius: 6px;">🅿️ Parking: ${hospital.services.parking}</span>
-                    </div>
                 </div>
 
                 <div style="margin-bottom: 16px;">

@@ -23,7 +23,17 @@ const verifyServiceApiKey = process.env.VERIFY_SERVICE_API_KEY || null;
 const verifyServiceAuthHeader = process.env.VERIFY_SERVICE_AUTH_HEADER || 'Authorization';
 const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY || '';
 
-const formatPhoneE164 = (phone) => phone.startsWith('+') ? phone : `+91${phone}`;
+const formatPhoneE164 = (phone) => {
+  const normalized = String(phone || '').replace(/[\s()-]/g, '');
+  return normalized.startsWith('+') ? normalized : `+91${normalized}`;
+};
+const twilioVerifiedPhones = new Set(
+  String(process.env.TWILIO_VERIFIED_PHONES || '')
+    .split(',')
+    .map((phone) => formatPhoneE164(phone).trim())
+    .filter((phone) => /^\+\d{8,15}$/.test(phone))
+);
+  const demoOtpEnabled = String(process.env.DEMO_OTP_ENABLED || 'true').toLowerCase() === 'true';
 
 function signAuthToken(payload) {
   return jwt.sign(payload, process.env.JWT_SECRET || 'jeevanconnect_secret', { expiresIn: '7d' });
@@ -113,16 +123,22 @@ async function resolveDriverMongoId(...candidates) {
 }
 
 async function sendOtpViaTwilioVerify(phone) {
-  if (!twilioClient || !twilioVerifyServiceSid) return false;
+  const recipient = formatPhoneE164(phone);
+  if (!twilioVerifiedPhones.has(recipient)) {
+    return { sent: false, error: 'This number is not in the configured Twilio recipient list.' };
+  }
+  if (!twilioClient || !twilioVerifyServiceSid) return { sent: false, error: 'Twilio Verify is not configured.' };
   try {
-    const to = formatPhoneE164(phone);
     const verification = await twilioClient.verify.v2
       .services(twilioVerifyServiceSid)
-      .verifications.create({ to, channel: 'sms' });
-    return verification.status === 'pending';
+      .verifications.create({ to: recipient, channel: 'sms' });
+    return {
+      sent: verification.status === 'pending',
+      error: verification.status === 'pending' ? null : `Twilio returned status ${verification.status}.`
+    };
   } catch (error) {
     console.error('Twilio Verify error:', error.message || error);
-    return false;
+    return { sent: false, error: error.message || String(error) };
   }
 }
 
@@ -141,7 +157,9 @@ async function checkOtpViaTwilioVerify(phone, code) {
 }
 
 async function sendOtpViaCustomService(phone, otp) {
-  if (!verifyServiceUrl) return false;
+  if (!verifyServiceUrl || verifyServiceUrl.includes('your-verify-service.com')) {
+    return { sent: false, error: 'Custom verification service is not configured.' };
+  }
 
   const payload = {
     phone: formatPhoneE164(phone),
@@ -163,15 +181,47 @@ async function sendOtpViaCustomService(phone, otp) {
       body: JSON.stringify(payload)
     });
 
-    return response.ok;
+    return {
+      sent: response.ok,
+      error: response.ok ? null : `Custom verification service returned HTTP ${response.status}.`
+    };
   } catch (error) {
     console.error('Custom verify service error:', error.message || error);
-    return false;
+    return { sent: false, error: error.message || String(error) };
   }
 }
 
+async function sendEmergencyContactAlerts(contacts = [], emergencyType = 'Emergency', location = null) {
+  if (!twilioClient || !twilioFromNumber || !Array.isArray(contacts) || !contacts.length) {
+    return { sent: 0, skipped: contacts.length || 0 };
+  }
+
+  const locationText = location?.lat && location?.lng
+    ? ` Location: https://www.google.com/maps?q=${location.lat},${location.lng}`
+    : '';
+  const body = `Jeevan Connect emergency alert: A person may be in danger (${emergencyType}). Please contact them immediately.${locationText}`;
+  let sent = 0;
+
+  for (const contact of contacts.slice(0, 5)) {
+    const phone = String(contact?.phone || '').trim();
+    if (!phone) continue;
+    try {
+      await twilioClient.messages.create({
+        body,
+        from: twilioFromNumber,
+        to: formatPhoneE164(phone)
+      });
+      sent += 1;
+    } catch (error) {
+      console.error(`Emergency contact SMS failed for ${phone}:`, error.message || error);
+    }
+  }
+
+  return { sent, skipped: Math.max(0, contacts.length - sent) };
+}
+
 if (!twilioClient || !twilioFromNumber) {
-  console.warn('Twilio is not fully configured. OTP will be logged in the backend console and demo OTP will be returned instead.');
+  console.warn('Twilio SMS is not fully configured. Demo OTP will be returned only when no configured SMS provider can deliver the OTP.');
 } else {
   console.log('Twilio SMS is configured. OTP messages will be sent via Twilio.');
 }
@@ -196,6 +246,7 @@ const io = socketIo(server, {
 // Lightweight in-memory dispatch state for real-time SOS flow.
 const onlineDrivers = new Map(); // socketId -> { driverId, name, vehicle, location, isAvailable }
 const activeDispatches = new Map(); // sosId -> { citizenSocketId, payload, status, driverSocketId }
+const driverReassignmentTimers = new Map();
 
 const MUMBAI_LOCATION_REFERENCE = [
   { name: 'Colaba', lat: 18.9067, lng: 72.8147 },
@@ -431,6 +482,19 @@ const EmergencySchema = new mongoose.Schema({
     lng: Number,
     address: String
   },
+  addressDetails: {
+    building: String,
+    roomNo: String,
+    landmark: String,
+    area: String,
+    city: String,
+    state: String,
+    fullAddress: String
+  },
+  hospitalPreference: {
+    mode: { type: String, enum: ['auto', 'manual'], default: 'auto' },
+    specialty: { type: String, default: 'auto' }
+  },
   status: { type: String, enum: ['pending', 'assigned', 'enroute', 'arrived', 'completed', 'cancelled'], default: 'pending' },
   assignedDriver: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
   assignedDriverSnapshot: {
@@ -451,6 +515,29 @@ const EmergencySchema = new mongoose.Schema({
     }
   },
   assignedHospital: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital' },
+  assignedHospitalSnapshot: {
+    name: String,
+    type: { type: String },
+    phoneNumber: String,
+    location: {
+      lat: Number,
+      lng: Number,
+      address: String,
+      city: String,
+      state: String
+    }
+  },
+  assignmentHistory: [{
+    driverId: String,
+    driverMongoId: String,
+    driverName: String,
+    ambulanceId: String,
+    status: { type: String, enum: ['assigned', 'accepted', 'declined', 'timeout', 'cancelled'] },
+    reason: String,
+    distanceKm: Number,
+    assignedAt: Date,
+    respondedAt: Date
+  }],
   ambulancePickedAt: Date,
   hospitalAssignedAt: Date,
   completedAt: Date,
@@ -488,7 +575,7 @@ const HospitalSchema = new mongoose.Schema({
   passwordHash: String,
   lastLoginAt: Date,
   source: { type: String, default: 'system' },
-  type: { type: String, enum: ['Government', 'Private', 'Trust'], default: 'Government' },
+  type: { type: String, enum: ['Government', 'Private', 'Trust', 'Unknown'], default: 'Unknown' },
   specialties: [String],
   distance: Number,
   driveTime: String,
@@ -523,6 +610,48 @@ const User = mongoose.model('User', UserSchema);
 const Driver = mongoose.model('Driver', DriverSchema);
 const Emergency = mongoose.model('Emergency', EmergencySchema);
 const Hospital = mongoose.model('Hospital', HospitalSchema);
+
+function normalizeHospitalPreference(preference = {}) {
+  const rawMode = String(preference.mode || 'auto').trim().toLowerCase();
+  const mode = rawMode === 'manual' ? 'manual' : 'auto';
+  return {
+    mode,
+    specialty: String(preference.specialty || 'auto'),
+    hospital: preference.hospital || null
+  };
+}
+
+function getHospitalSnapshot(hospital = null) {
+  if (!hospital || !hospital.name) return null;
+  return {
+    name: String(hospital.name),
+    type: String(hospital.type || 'Unknown'),
+    phoneNumber: String(hospital.phoneNumber || ''),
+    location: {
+      lat: Number(hospital.location?.lat),
+      lng: Number(hospital.location?.lng),
+      address: String(hospital.location?.address || ''),
+      city: String(hospital.location?.city || 'Mumbai'),
+      state: String(hospital.location?.state || 'Maharashtra')
+    }
+  };
+}
+
+function appendAssignmentHistory(emergency, assignment, status, reason = '') {
+  if (!emergency || !assignment) return;
+  emergency.assignmentHistory = emergency.assignmentHistory || [];
+  emergency.assignmentHistory.push({
+    driverId: assignment.driverId || null,
+    driverMongoId: assignment.driverMongoId || null,
+    driverName: assignment.driverName || 'Ambulance Driver',
+    ambulanceId: assignment.ambulanceId || assignment.vehicle || null,
+    status,
+    reason,
+    distanceKm: normalizeDistanceKm(assignment.distanceKm),
+    assignedAt: assignment.assignedAt || new Date(),
+    respondedAt: status === 'assigned' ? null : new Date()
+  });
+}
 
 function getDriverAvailabilityStatus(driver = {}) {
   const status = String(driver.status || '').toLowerCase();
@@ -764,11 +893,17 @@ async function getAvailableAmbulanceCandidates(options = {}) {
     ].map(normalizeDriverKey).filter(Boolean).forEach((key) => excludedKeys.add(key));
   }
 
+  const candidatesByKey = new Map();
+
   try {
-    const records = await Driver.find({ status: 'available' }).lean();
-    return records.map((driver) => {
+    const records = await Driver.find({
+      status: 'available',
+      'location.lat': { $exists: true },
+      'location.lng': { $exists: true }
+    }).lean();
+    records.forEach((driver) => {
       const location = getDriverLocation(driver);
-      if (!location) return null;
+      if (!location) return;
 
       const candidate = {
         source: 'mongodb',
@@ -786,14 +921,15 @@ async function getAvailableAmbulanceCandidates(options = {}) {
 
       candidate.socketId = findSocketIdForCandidate(candidate);
       const keys = getCandidateDriverKeys(candidate);
-      if (keys.some((key) => excludedKeys.has(key))) return null;
-
-      return candidate;
-    }).filter(Boolean);
+      if (keys.some((key) => excludedKeys.has(key))) return;
+      const key = keys[0];
+      if (key) candidatesByKey.set(key, candidate);
+    });
   } catch (error) {
     console.warn('Could not load ambulance candidates from MongoDB:', error.message || error);
-    return [];
   }
+
+  return Array.from(candidatesByKey.values());
 }
 
 function rankAmbulancesByDistance(targetLocation, candidates = []) {
@@ -823,6 +959,331 @@ function pickNearestAmbulance(targetLocation, candidates = []) {
   };
 }
 
+function getEmergencyHospitalSpecialtyHints(emergencyType = '') {
+  const lower = String(emergencyType || '').toLowerCase();
+  if (/(eye|vision|ophthal|retina|cornea|sight)/.test(lower)) return ['eye', 'ophthalmology', 'vision', 'retina'];
+  if (/(cancer|oncology|tumor|tumour|chemotherapy|radiation)/.test(lower)) return ['cancer', 'oncology', 'tumor', 'radiology'];
+  if (/(heart|cardiac|chest pain|stroke|brain|neuro)/.test(lower)) return ['cardiac', 'heart', 'neuro', 'stroke'];
+  if (/(breath|lung|asthma|respiratory|oxygen)/.test(lower)) return ['lung', 'respiratory', 'pulmonary'];
+  if (/(fracture|bone|orthopedic|accident|trauma|injury|fall)/.test(lower)) return ['orthopedic', 'trauma', 'bone', 'emergency'];
+  if (/(child|pediatric|paediatric|baby|newborn)/.test(lower)) return ['pediatric', 'child', 'women'];
+  if (/(pregnancy|labor|women|maternity|gyne|obstetric)/.test(lower)) return ['women', 'maternity', 'gyne'];
+  return ['general', 'emergency', 'trauma', 'multi-specialty'];
+}
+
+function hospitalMatchesEmergencySpecialty(hospital = {}, emergencyType = '', preferredHospitalType = 'auto') {
+  if (!hospital || typeof hospital !== 'object') return true;
+  const specialtyName = String(preferredHospitalType || 'auto').trim().toLowerCase();
+  if (specialtyName === 'nearest') return false;
+  const specialties = Array.isArray(hospital.specialties)
+    ? hospital.specialties.map((item) => String(item || '').toLowerCase())
+    : [];
+  const hospitalName = String(hospital.name || '').toLowerCase();
+
+  if (specialtyName && specialtyName !== 'auto' && specialtyName !== 'any') {
+    const specialtyKeywords = {
+      eye: ['eye', 'vision', 'ophthal', 'retina', 'cornea', 'sight'],
+      cancer: ['cancer', 'oncology', 'tumor', 'tumour', 'radiology'],
+      heart: ['heart', 'cardiac', 'cardio', 'stroke'],
+      trauma: ['trauma', 'injury', 'fracture', 'orthopedic', 'bone', 'accident'],
+      lung: ['lung', 'respiratory', 'pulmonary', 'asthma'],
+      child: ['pediatric', 'paediatric', 'child', 'newborn'],
+      women: ['women', 'maternity', 'gyne', 'obstetric']
+    };
+
+    const keywords = specialtyKeywords[specialtyName] || [specialtyName];
+    const matches = specialties.some((value) => keywords.some((keyword) => value.includes(keyword)))
+      || keywords.some((keyword) => hospitalName.includes(keyword));
+    return matches;
+  }
+
+  const hints = getEmergencyHospitalSpecialtyHints(emergencyType);
+  return specialties.some((value) => hints.some((hint) => value.includes(hint)))
+    || hints.some((hint) => hospitalName.includes(hint));
+}
+
+async function assignPendingEmergency(emergency, payload = {}, citizenSocketId = null) {
+  if (!emergency?._id) return null;
+
+  const sosId = String(emergency._id);
+  const candidates = await getAvailableAmbulanceCandidates({ excludeDriverKeys: [] });
+  const selection = pickNearestAmbulance(emergency.location || payload.location, candidates);
+  const selected = selection.selected;
+  if (!selected) return null;
+
+  const hospitalPreference = normalizeHospitalPreference(payload.hospitalPreference || emergency.hospitalPreference);
+  const hospital = await selectBestHospitalForEmergency(
+    emergency.emergencyType || payload.emergencyType || 'Emergency',
+    emergency.location || payload.location || null,
+    hospitalPreference.specialty,
+    hospitalPreference.hospital
+  );
+
+  const driverMongoId = selected.mongoId && mongoose.Types.ObjectId.isValid(String(selected.mongoId))
+    ? String(selected.mongoId)
+    : await resolveDriverMongoId(selected.driverId, selected.loginId, selected.ambulanceId, selected.phone);
+
+  const assignment = {
+    driverId: selected.driverId || driverMongoId || null,
+    driverMongoId: driverMongoId || null,
+    driverLoginId: selected.loginId || null,
+    driverAmbulanceId: selected.ambulanceId || selected.vehicle || null,
+    driverName: selected.name || 'Ambulance Driver',
+    vehicle: selected.vehicle || selected.ambulanceId || 'Ambulance Unit',
+    driverPhone: selected.phone || '',
+    driverSource: selected.source || 'dispatch',
+    driverDistanceKm: normalizeDistanceKm(selected.distanceKm),
+    driverLocation: selected.location || null,
+    assignmentBasis: {
+      method: 'haversine-nearest',
+      selectedDistanceKm: normalizeDistanceKm(selected.distanceKm),
+      selectedDriverId: selected.driverId || driverMongoId || null,
+      selectedDriverName: selected.name || 'Ambulance Driver',
+      selectedDriverVehicle: selected.ambulanceId || selected.vehicle || null,
+      rankedCandidates: selection.ranked.slice(0, 5).map((candidate, index) => ({
+        rank: index + 1,
+        driverId: candidate.driverId || candidate.mongoId || null,
+        driverName: candidate.name,
+        ambulanceId: candidate.ambulanceId || candidate.vehicle,
+        distanceKm: normalizeDistanceKm(candidate.distanceKm),
+        online: Boolean(candidate.socketId)
+      }))
+    },
+    assignedAt: new Date()
+  };
+
+  emergency.status = 'assigned';
+  emergency.assignedDriver = driverMongoId || null;
+  emergency.assignedHospital = hospital?.hospitalId || null;
+  emergency.assignedHospitalSnapshot = getHospitalSnapshot(hospital);
+  emergency.assignedDriverSnapshot = {
+    driverId: assignment.driverId,
+    loginId: assignment.driverLoginId,
+    ambulanceId: assignment.driverAmbulanceId,
+    name: assignment.driverName,
+    vehicle: assignment.vehicle,
+    phone: assignment.driverPhone,
+    source: assignment.driverSource,
+    distanceKm: assignment.driverDistanceKm,
+    location: assignment.driverLocation
+  };
+  appendAssignmentHistory(emergency, assignment, 'assigned', 'nearest-driver');
+  await emergency.save();
+
+  const dispatch = {
+    citizenSocketId,
+    payload: {
+      ...payload,
+      citizenName: emergency.citizenName || payload.citizenName || 'Unknown Citizen',
+      citizenPhone: emergency.citizenPhone || payload.citizenPhone || '',
+      requesterName: emergency.initiatedBy?.name || emergency.citizenName || 'Unknown Citizen',
+      requesterPhone: emergency.initiatedBy?.phone || emergency.citizenPhone || '',
+      initiatedBy: emergency.initiatedBy || payload.initiatedBy || null,
+      patientAddress: emergency.addressDetails || payload.patientAddress || {},
+      sosId,
+      emergencyId: sosId,
+      emergencyMongoId: sosId,
+      status: 'assigned',
+      patientLocation: emergency.location || payload.location || null,
+      hospitalPreference,
+      assignedHospital: hospital || null,
+      ...assignment
+    },
+    status: 'assigned',
+    driverSocketId: selected.socketId || null
+  };
+  activeDispatches.set(sosId, dispatch);
+
+  if (driverMongoId) {
+    await Driver.findByIdAndUpdate(driverMongoId, { status: 'available', isOnline: Boolean(selected.socketId) }).catch(() => {});
+  }
+
+  if (selected.socketId) {
+    io.to(selected.socketId).emit('dispatch-call', {
+      ...dispatch.payload,
+      status: 'ASSIGNED',
+      routeStage: 'to_patient'
+    });
+  }
+
+  scheduleDriverReassignment(sosId, 'driver-no-response');
+  return dispatch;
+}
+
+function scheduleDriverReassignment(sosId, reason = 'no-acceptance') {
+  if (!sosId) return;
+  if (driverReassignmentTimers.has(sosId)) {
+    clearTimeout(driverReassignmentTimers.get(sosId));
+  }
+
+  const delayMs = 300000;
+  const timer = setTimeout(async () => {
+    driverReassignmentTimers.delete(sosId);
+    const dispatch = activeDispatches.get(sosId);
+    if (!dispatch || ['enroute', 'hospital_assigned', 'arrived', 'completed', 'cancelled'].includes(dispatch.status)) return;
+
+    const previousDriverKeys = [
+      dispatch.payload?.driverMongoId,
+      dispatch.payload?.driverId,
+      dispatch.payload?.driverLoginId,
+      dispatch.payload?.driverAmbulanceId,
+      dispatch.payload?.driverName
+    ].map(normalizeDriverKey).filter(Boolean);
+
+    const declinedSet = new Set((dispatch.payload?.declinedDriverKeys || []).map(normalizeDriverKey));
+    previousDriverKeys.forEach((key) => declinedSet.add(key));
+    dispatch.payload.declinedDriverKeys = Array.from(declinedSet);
+    dispatch.payload.declineCount = Number(dispatch.payload.declineCount || 0) + 1;
+
+    if (dispatch.payload.emergencyId && mongoose.Types.ObjectId.isValid(dispatch.payload.emergencyId)) {
+      await Emergency.findByIdAndUpdate(dispatch.payload.emergencyId, {
+        $push: {
+          assignmentHistory: {
+            driverId: dispatch.payload.driverId || null,
+            driverMongoId: dispatch.payload.driverMongoId || null,
+            driverName: dispatch.payload.driverName || 'Ambulance Driver',
+            ambulanceId: dispatch.payload.driverAmbulanceId || dispatch.payload.vehicle || null,
+            status: 'timeout',
+            reason: 'No acceptance within 2 minutes',
+            distanceKm: normalizeDistanceKm(dispatch.payload.driverDistanceKm),
+            assignedAt: dispatch.payload.assignedAt || new Date(),
+            respondedAt: new Date()
+          }
+        }
+      }).catch((error) => console.error('Assignment timeout history error:', error.message || error));
+    }
+
+    const candidates = await getAvailableAmbulanceCandidates({ excludeDriverKeys: dispatch.payload.declinedDriverKeys });
+    const selection = pickNearestAmbulance(dispatch.payload.patientLocation || dispatch.payload.location, candidates);
+    const selected = selection.selected;
+
+    if (!selected) {
+      dispatch.status = 'pending';
+      dispatch.payload.status = 'pending';
+      activeDispatches.set(sosId, dispatch);
+      io.to(dispatch.citizenSocketId).emit('sos-no-driver', {
+        sosId,
+        reason,
+        message: 'Assigned driver did not respond within 2 minutes. Searching again for the nearest available ambulance.'
+      });
+      scheduleDriverReassignment(sosId, 'no-available-driver');
+      return;
+    }
+
+    const { socketId: driverSocketId, mongoId, driverId: selectedDriverId, loginId, ambulanceId, name: driverName, vehicle, source, distanceKm, phone } = selected;
+    dispatch.status = 'assigned';
+    dispatch.driverSocketId = driverSocketId || null;
+    dispatch.payload.status = 'assigned';
+    dispatch.payload.driverId = selectedDriverId || mongoId || null;
+    dispatch.payload.driverMongoId = mongoId || null;
+    dispatch.payload.driverLoginId = loginId || null;
+    dispatch.payload.driverAmbulanceId = ambulanceId || vehicle;
+    dispatch.payload.driverName = driverName;
+    dispatch.payload.vehicle = vehicle;
+    dispatch.payload.driverPhone = phone || '';
+    dispatch.payload.driverSource = source;
+    dispatch.payload.driverDistanceKm = normalizeDistanceKm(distanceKm);
+    dispatch.payload.driverLocation = selected.location || null;
+    dispatch.payload.assignedAt = new Date();
+
+    const reassignedHospital = dispatch.payload.assignedHospital || await selectBestHospitalForEmergency(
+      dispatch.payload.emergencyType || 'Emergency',
+      dispatch.payload.patientLocation || dispatch.payload.location || null,
+      dispatch.payload.hospitalPreference?.specialty || 'auto',
+      dispatch.payload.hospitalPreference?.hospital || null
+    );
+    if (reassignedHospital) {
+      dispatch.payload.assignedHospital = reassignedHospital;
+    }
+
+    dispatch.payload.assignmentBasis = {
+      method: 'haversine-nearest',
+      reason,
+      selectedDistanceKm: normalizeDistanceKm(distanceKm),
+      selectedDriverId: selectedDriverId || mongoId || null,
+      selectedDriverName: driverName,
+      selectedDriverVehicle: ambulanceId || vehicle,
+      rankedCandidates: selection.ranked.slice(0, 5).map((candidate, index) => ({
+        rank: index + 1,
+        driverId: candidate.driverId || candidate.mongoId || null,
+        driverName: candidate.name,
+        ambulanceId: candidate.ambulanceId || candidate.vehicle,
+        distanceKm: normalizeDistanceKm(candidate.distanceKm),
+        online: Boolean(candidate.socketId)
+      }))
+    };
+    activeDispatches.set(sosId, dispatch);
+
+    if (mongoId && mongoose.Types.ObjectId.isValid(String(mongoId))) {
+      await Driver.findByIdAndUpdate(mongoId, { status: 'available', isOnline: Boolean(driverSocketId) }).catch(() => {});
+    }
+
+    if (dispatch.payload.emergencyId && mongoose.Types.ObjectId.isValid(dispatch.payload.emergencyId)) {
+      await Emergency.findByIdAndUpdate(dispatch.payload.emergencyId, {
+        status: 'assigned',
+        assignedDriver: mongoId && mongoose.Types.ObjectId.isValid(String(mongoId)) ? mongoId : null,
+        assignedHospitalSnapshot: getHospitalSnapshot(reassignedHospital),
+        assignedHospital: reassignedHospital?.hospitalId || null,
+        assignedDriverSnapshot: {
+          driverId: selectedDriverId || null,
+          loginId: loginId || null,
+          ambulanceId: ambulanceId || vehicle || null,
+          name: driverName || 'Ambulance Driver',
+          vehicle: vehicle || ambulanceId || 'Ambulance Unit',
+          phone: phone || '',
+          source: source || 'dispatch-reassign',
+          distanceKm: normalizeDistanceKm(distanceKm),
+          location: selected.location || null
+        },
+        $push: {
+          assignmentHistory: {
+            driverId: selectedDriverId || null,
+            driverMongoId: mongoId || null,
+            driverName: driverName || 'Ambulance Driver',
+            ambulanceId: ambulanceId || vehicle || null,
+            status: 'assigned',
+            reason: reason || 'driver-reassignment',
+            distanceKm: normalizeDistanceKm(distanceKm),
+            assignedAt: new Date(),
+            respondedAt: null
+          }
+        }
+      }).catch((error) => console.error('Reassignment persistence error:', error.message || error));
+    }
+
+    io.to(dispatch.citizenSocketId).emit('sos-assigned', {
+      sosId,
+      emergencyId: dispatch.payload.emergencyId,
+      driverId: dispatch.payload.driverId,
+      driverName,
+      vehicle,
+      driverPhone: phone || '',
+      driverDistanceKm: distanceKm,
+      driverLocation: selected.location || null,
+      etaMinutes: Math.max(3, Math.ceil((distanceKm || 1) * 2)),
+      patientLocation: dispatch.payload.patientLocation || dispatch.payload.location || null,
+      assignedHospital: dispatch.payload.assignedHospital || null,
+      emergencyType: dispatch.payload.emergencyType || 'Emergency',
+      priority: dispatch.payload.priority || 'high',
+      assignmentBasis: dispatch.payload.assignmentBasis
+    });
+
+    if (driverSocketId) {
+      io.to(driverSocketId).emit('dispatch-call', {
+        ...dispatch.payload,
+        status: 'ASSIGNED',
+        patientLocation: dispatch.payload.patientLocation || dispatch.payload.location || null,
+        emergencyId: dispatch.payload.emergencyId,
+        routeStage: 'to_patient'
+      });
+    }
+
+    scheduleDriverReassignment(sosId, 'driver-no-response');
+  }, delayMs);
+
+  driverReassignmentTimers.set(sosId, timer);
+}
+
 function getEmergencyHospitalProfile(emergencyType = '') {
   const lower = String(emergencyType || '').toLowerCase();
   return {
@@ -841,11 +1302,10 @@ function normalizeGeoPoint(point = {}) {
   return { lat, lng };
 }
 
-async function selectBestHospitalForEmergency(emergencyType, patientLocation) {
+async function selectBestHospitalForEmergency(emergencyType, patientLocation, preferredHospitalType = 'auto', selectedHospital = null) {
   const patientPoint = normalizeGeoPoint(patientLocation);
   if (!patientPoint) return null;
 
-  // Use the same nearby source as hospital finder UI so assignment matches what user sees.
   let nearby = await fetchGoogleNearbyHospitals(patientPoint.lat, patientPoint.lng, 10);
   if (!nearby.length) {
     nearby = getLocalMumbaiNearbyHospitals(patientPoint.lat, patientPoint.lng, 10);
@@ -866,15 +1326,29 @@ async function selectBestHospitalForEmergency(emergencyType, patientLocation) {
 
   if (!nearby.length) return null;
 
+  const requestedType = String(preferredHospitalType || 'auto').trim().toLowerCase();
+  if (selectedHospital?.name) {
+    const selectedName = String(selectedHospital.name).trim().toLowerCase();
+    const exactMatch = nearby.find((hospital) => String(hospital.name || '').trim().toLowerCase() === selectedName);
+    if (exactMatch) nearby = [exactMatch];
+    else nearby = [{ ...selectedHospital, source: selectedHospital.source || 'citizen-selected' }];
+  }
+  const specialtyFocusedNearby = requestedType && requestedType !== 'auto' && requestedType !== 'any'
+    ? nearby.filter((hospital) => hospitalMatchesEmergencySpecialty(hospital, emergencyType, requestedType))
+    : nearby;
+  const eligibleNearby = specialtyFocusedNearby.length ? specialtyFocusedNearby : nearby;
+
   const profile = getEmergencyHospitalProfile(emergencyType);
-  const ranked = nearby
+  const ranked = eligibleNearby
     .map((hospital) => {
       const point = normalizeGeoPoint(hospital.location || {});
       if (!point) return null;
 
       const distanceKm = calculateDistance(patientPoint.lat, patientPoint.lng, point.lat, point.lng);
       const icuBeds = Number(hospital.facilities?.icuBeds || 0);
+      const specialtyBonus = hospitalMatchesEmergencySpecialty(hospital, emergencyType, requestedType) ? 2.5 : 0;
       const tieCapabilityScore =
+        specialtyBonus +
         (profile.trauma && hospital.services?.trauma ? 2 : 0)
         + (profile.cardiac && hospital.services?.cardiology ? 2 : 0)
         + (profile.neuro && icuBeds > 0 ? 1 : 0)
@@ -884,7 +1358,11 @@ async function selectBestHospitalForEmergency(emergencyType, patientLocation) {
     })
     .filter(Boolean)
     .sort((a, b) => {
-      // Strict nearest-first; capability is only tie-break when distance is almost identical.
+      if (requestedType && requestedType !== 'auto' && requestedType !== 'any') {
+        if (hospitalMatchesEmergencySpecialty(b.hospital, emergencyType, requestedType) !== hospitalMatchesEmergencySpecialty(a.hospital, emergencyType, requestedType)) {
+          return hospitalMatchesEmergencySpecialty(b.hospital, emergencyType, requestedType) ? 1 : -1;
+        }
+      }
       if (Math.abs(a.distanceKm - b.distanceKm) > 0.15) return a.distanceKm - b.distanceKm;
       return b.tieCapabilityScore - a.tieCapabilityScore || a.distanceKm - b.distanceKm;
     });
@@ -893,7 +1371,7 @@ async function selectBestHospitalForEmergency(emergencyType, patientLocation) {
   const winnerPoint = normalizeGeoPoint(winner.location || {});
   if (!winnerPoint) return null;
 
-  const normalizedType = ['Government', 'Private', 'Trust'].includes(winner.type) ? winner.type : 'Private';
+  const normalizedType = ['Government', 'Private', 'Trust', 'Unknown'].includes(winner.type) ? winner.type : 'Unknown';
   const hospitalRecord = await Hospital.findOneAndUpdate(
     {
       name: String(winner.name || '').trim(),
@@ -1074,30 +1552,43 @@ app.post('/api/auth/send-otp', async (req, res) => {
     otpStore.set(phone, {
       otp,
       expires: Date.now() + 5 * 60 * 1000,
-      type
+      type,
+      provider: 'pending'
     });
-
-    // In production, send SMS via Twilio
-    console.log(`OTP for ${phone}: ${otp}`);
 
     let smsStatus = 'skipped';
     let smsProvider = 'none';
     let smsError = null;
+    const twilioRecipient = formatPhoneE164(phone);
+    const isConfiguredTwilioRecipient = twilioVerifiedPhones.has(twilioRecipient);
 
     if (twilioVerifyServiceSid) {
-      const sent = await sendOtpViaTwilioVerify(phone);
-      if (sent) {
+      const result = await sendOtpViaTwilioVerify(phone);
+      if (result.sent) {
         smsStatus = 'sent';
         smsProvider = 'twilio-verify';
+      } else {
+        smsError = result.error;
       }
     }
 
     if (smsStatus !== 'sent' && verifyServiceUrl) {
-      const sent = await sendOtpViaCustomService(phone, otp);
-      if (sent) {
+      const result = await sendOtpViaCustomService(phone, otp);
+      if (result.sent) {
         smsStatus = 'sent';
         smsProvider = 'custom';
+      } else if (!smsError || smsError === 'Custom verification service is not configured.') {
+        smsError = result.error;
       }
+    }
+
+    if (isConfiguredTwilioRecipient && smsStatus !== 'sent') {
+      return res.status(502).json({
+        success: false,
+        message: 'Twilio could not send the OTP to this configured recipient.',
+        provider: 'twilio-verify',
+        error: smsError || 'Check Twilio Verify recipient verification, service configuration, and account status.'
+      });
     }
 
     if (smsStatus !== 'sent' && !twilioVerifyServiceSid && twilioClient && twilioFromNumber) {
@@ -1116,17 +1607,33 @@ app.post('/api/auth/send-otp', async (req, res) => {
       }
     }
 
+    const storedOtp = otpStore.get(phone);
+    if (storedOtp) {
+      storedOtp.provider = smsStatus === 'sent' ? smsProvider : 'demo';
+      otpStore.set(phone, storedOtp);
+    }
+
     const responsePayload = {
       success: true,
       message: smsStatus === 'sent'
         ? `OTP sent via ${smsProvider}.`
-        : 'OTP generated. Check backend log or configure SMS provider to send OTP.',
+        : 'SMS delivery was unavailable. Use the demo OTP shown below.',
       smsStatus,
       provider: smsProvider,
-      error: smsError || undefined,
-      // Always return demo OTP so deployment demos can continue even if SMS providers throttle or fail.
-      demoOtp: otp
+      error: smsError || undefined
     };
+
+    if (smsStatus !== 'sent' && demoOtpEnabled) {
+      responsePayload.demoOtp = otp;
+      console.log(`Demo OTP for ${phone}: ${otp}`);
+    } else if (smsStatus !== 'sent') {
+      return res.status(503).json({
+        success: false,
+        message: 'OTP delivery failed and demo OTP fallback is disabled.',
+        provider: smsProvider,
+        error: smsError || 'Configure an SMS provider or set DEMO_OTP_ENABLED=true for development.'
+      });
+    }
 
     res.json(responsePayload);
   } catch (error) {
@@ -1139,13 +1646,14 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     const { phone, otp, type } = req.body;
 
     let verified = false;
-    if (twilioVerifyServiceSid) {
+    const storedOtp = otpStore.get(phone);
+    const usesTwilioVerify = storedOtp?.provider === 'twilio-verify';
+    if (usesTwilioVerify) {
       verified = await checkOtpViaTwilioVerify(phone, otp);
       if (!verified) {
         return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
       }
     } else {
-      const storedOtp = otpStore.get(phone);
       if (!storedOtp || storedOtp.otp !== otp || storedOtp.expires < Date.now()) {
         return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
       }
@@ -1579,7 +2087,10 @@ app.get('/api/admin/ambulance-assignments', async (req, res) => {
             name: emergency.assignedHospital.name || 'Assigned Hospital',
             location: emergency.assignedHospital.location || null
           }
-        : null,
+        : (emergency.assignedHospitalSnapshot
+          ? { name: emergency.assignedHospitalSnapshot.name, location: emergency.assignedHospitalSnapshot.location || null }
+          : null),
+      assignmentHistory: emergency.assignmentHistory || [],
       citizen: {
         name: emergency.citizenName || emergency.initiatedBy?.name || 'Unknown Citizen',
         phone: emergency.citizenPhone || emergency.initiatedBy?.phone || ''
@@ -2034,7 +2545,7 @@ app.post('/api/driver/login', async (req, res) => {
 app.post('/api/emergency', async (req, res) => {
   try {
     console.log('POST /api/emergency called with body:', JSON.stringify(req.body).substring(0, 200));
-    const { citizenId, location, description, priority, emergencyType, medicalSnapshot } = req.body;
+    const { citizenId, location, description, priority, emergencyType, medicalSnapshot, hospitalPreference } = req.body;
 
     const token = getTokenFromRequest(req);
     let resolvedCitizenId = citizenId;
@@ -2084,6 +2595,8 @@ app.post('/api/emergency', async (req, res) => {
         phone: citizen.phone || ''
       },
       location,
+      addressDetails: req.body.patientAddress || {},
+      hospitalPreference: normalizeHospitalPreference(hospitalPreference),
       emergencyType,
       description,
       priority: priority || 'high',
@@ -2092,6 +2605,13 @@ app.post('/api/emergency', async (req, res) => {
 
     await emergency.save();
     console.log('POST emergency: Emergency saved successfully with ID', emergency._id);
+
+    let initialDispatch = null;
+    try {
+      initialDispatch = await assignPendingEmergency(emergency, req.body, null);
+    } catch (error) {
+      console.error('Initial SOS assignment error:', error.message || error);
+    }
 
     // Emit real-time emergency alert
     io.emit('new-emergency', {
@@ -2102,7 +2622,11 @@ app.post('/api/emergency', async (req, res) => {
       createdAt: emergency.createdAt
     });
 
-    res.json({ success: true, emergencyId: emergency._id });
+    res.json({
+      success: true,
+      emergencyId: emergency._id,
+      assignment: initialDispatch?.payload || null
+    });
   } catch (error) {
     console.error('POST emergency error:', error.message || error);
     res.status(500).json({ success: false, message: 'Failed to create emergency request: ' + (error.message || 'Unknown error') });
@@ -2209,7 +2733,8 @@ app.get('/api/emergency/:id/dispatch-status', async (req, res) => {
             location: assignedHospital.location || null,
             phoneNumber: assignedHospital.phoneNumber || null
           }
-        : (payload.assignedHospital || null),
+        : (payload.assignedHospital || emergency.assignedHospitalSnapshot || null),
+      assignmentHistory: emergency.assignmentHistory || [],
       patientLocation: payload.patientLocation || emergency.location || null,
       updatedAt: emergency.updatedAt
     });
@@ -2392,8 +2917,12 @@ function loadLocalMumbaiHospitalDataset() {
 
 loadLocalMumbaiHospitalDataset();
 
-function classifyHospitalOwnership(name = '') {
-  const lower = String(name).toLowerCase();
+function classifyHospitalOwnership(name = '', operator = '', declaredType = '') {
+  const lower = `${String(name)} ${String(operator)}`.toLowerCase();
+  const declared = String(declaredType || '').trim().toLowerCase();
+  if (declared === 'government' || declared === 'public' || declared === 'municipal') return 'Government';
+  if (declared === 'private') return 'Private';
+  if (declared === 'trust' || declared === 'charitable') return 'Trust';
   if (
     lower.includes('government') ||
     lower.includes('govt') ||
@@ -2406,7 +2935,18 @@ function classifyHospitalOwnership(name = '') {
     lower.includes('kem') ||
     lower.includes('nair hospital') ||
     lower.includes('sion hospital') ||
-    lower.includes('st george')
+    lower.includes('st george') ||
+    lower.includes('rajawadi') ||
+    lower.includes('muktabai') ||
+    lower.includes('muktai') ||
+    lower.includes('bhabha') ||
+    lower.includes('cooper hospital') ||
+    lower.includes('lokmanya tilak') ||
+    lower.includes('v.n. desai') ||
+    lower.includes('kasturba') ||
+    lower.includes('shatabdi') ||
+    lower.includes('sevenhills') ||
+    lower.includes('balasaheb thackeray')
   ) {
     return 'Government';
   }
@@ -2419,7 +2959,11 @@ function classifyHospitalOwnership(name = '') {
     return 'Trust';
   }
 
-  return 'Private';
+  if (lower.includes('private') || lower.includes('pvt') || lower.includes('ltd') || lower.includes('corporate')) {
+    return 'Private';
+  }
+
+  return 'Unknown';
 }
 
 function estimateHospitalFacilitiesByType(type) {
@@ -2438,7 +2982,7 @@ function normalizeGooglePlaceHospital(place, userLat, userLng) {
   if (typeof lat !== 'number' || typeof lng !== 'number') return null;
 
   const name = place.name || 'Unnamed Hospital';
-  const ownershipType = classifyHospitalOwnership(name);
+  const ownershipType = classifyHospitalOwnership(name, place?.business_status, place?.type);
   const facilities = estimateHospitalFacilitiesByType(ownershipType);
   const distance = calculateDistance(userLat, userLng, lat, lng);
   const driveTime = Math.max(2, Math.ceil(distance * 2));
@@ -2498,7 +3042,7 @@ function normalizeLocalMumbaiHospital(entry, userLat, userLng) {
   if (!isValidHospitalName(name)) return null;
 
   const hospitalNo = Number(entry.HospitalNo || entry.hospitalNo) || null;
-  const ownershipType = classifyHospitalOwnership(name);
+  const ownershipType = classifyHospitalOwnership(name, entry.Operator || entry.operator, entry.Type || entry.type);
   const facilities = estimateHospitalFacilitiesByType(ownershipType);
   const distance = calculateDistance(userLat, userLng, lat, lng);
   const driveTime = Math.max(2, Math.ceil(distance * 2));
@@ -2540,7 +3084,7 @@ function normalizeLocalMumbaiHospitalForMap(entry) {
   const name = String(entry.HospitalName || entry.name || '').trim();
   if (!isValidHospitalName(name)) return null;
 
-  const ownershipType = classifyHospitalOwnership(name);
+  const ownershipType = classifyHospitalOwnership(name, entry.Operator || entry.operator, entry.Type || entry.type);
   const facilities = estimateHospitalFacilitiesByType(ownershipType);
   const hospitalNo = Number(entry.HospitalNo || entry.hospitalNo) || null;
 
@@ -2609,9 +3153,9 @@ app.get('/api/hospitals/all', async (req, res) => {
       hospitals = [
         { hospitalNo: 1, name: 'KEM Hospital', type: 'Government', specialties: ['Emergency', 'Trauma'], location: { lat: 19.0014, lng: 72.8419, address: 'Parel, Mumbai', city: 'Mumbai', state: 'Maharashtra' }, facilities: estimateHospitalFacilitiesByType('Government'), phoneNumber: '02224107000', source: 'hardcoded-fallback' },
         { hospitalNo: 2, name: 'Sion Hospital', type: 'Government', specialties: ['Emergency', 'General Care'], location: { lat: 19.0434, lng: 72.8602, address: 'Sion, Mumbai', city: 'Mumbai', state: 'Maharashtra' }, facilities: estimateHospitalFacilitiesByType('Government'), phoneNumber: '02224076381', source: 'hardcoded-fallback' },
-        { hospitalNo: 3, name: 'Cooper Hospital', type: 'Municipal', specialties: ['Emergency', 'General Care'], location: { lat: 19.1075, lng: 72.8372, address: 'Juhu, Mumbai', city: 'Mumbai', state: 'Maharashtra' }, facilities: estimateHospitalFacilitiesByType('Municipal'), phoneNumber: '02226207254', source: 'hardcoded-fallback' },
+        { hospitalNo: 3, name: 'Cooper Hospital', type: 'Government', specialties: ['Emergency', 'General Care'], location: { lat: 19.1075, lng: 72.8372, address: 'Juhu, Mumbai', city: 'Mumbai', state: 'Maharashtra' }, facilities: estimateHospitalFacilitiesByType('Government'), phoneNumber: '02226207254', source: 'hardcoded-fallback' },
         { hospitalNo: 4, name: 'Nair Hospital', type: 'Government', specialties: ['Emergency', 'Cardiac'], location: { lat: 18.9684, lng: 72.8191, address: 'Mumbai Central, Mumbai', city: 'Mumbai', state: 'Maharashtra' }, facilities: estimateHospitalFacilitiesByType('Government'), phoneNumber: '02223027000', source: 'hardcoded-fallback' },
-        { hospitalNo: 5, name: 'Rajawadi Hospital', type: 'Municipal', specialties: ['Emergency', 'General Care'], location: { lat: 19.0846, lng: 72.9069, address: 'Ghatkopar, Mumbai', city: 'Mumbai', state: 'Maharashtra' }, facilities: estimateHospitalFacilitiesByType('Municipal'), phoneNumber: '02221022700', source: 'hardcoded-fallback' }
+        { hospitalNo: 5, name: 'Rajawadi Hospital', type: 'Government', specialties: ['Emergency', 'General Care'], location: { lat: 19.0846, lng: 72.9069, address: 'Ghatkopar, Mumbai', city: 'Mumbai', state: 'Maharashtra' }, facilities: estimateHospitalFacilitiesByType('Government'), phoneNumber: '02221022700', source: 'hardcoded-fallback' }
       ];
     }
 
@@ -2874,6 +3418,63 @@ function getLocalMumbaiNearbyHospitals(userLat, userLng, radiusKm) {
   );
 }
 
+async function getImportedMongoNearbyHospitals(userLat, userLng, radiusKm) {
+  try {
+    const records = await Hospital.find({ source: 'xlsx-import' }).lean();
+    return records
+      .map((entry) => {
+        const lat = Number(entry.location?.lat);
+        const lng = Number(entry.location?.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+        const distance = calculateDistance(userLat, userLng, lat, lng);
+        if (distance > radiusKm) return null;
+
+        const type = classifyHospitalOwnership(entry.name, entry.operator, entry.type);
+
+        return {
+          name: entry.name,
+          type,
+          specialties: Array.isArray(entry.specialties) && entry.specialties.length
+            ? entry.specialties
+            : ['Emergency', 'General Care'],
+          location: entry.location,
+          facilities: entry.facilities || {},
+          services: entry.services || {},
+          operatingHours: entry.operatingHours || '',
+          phoneNumber: entry.phoneNumber || '',
+          rating: entry.rating,
+          distance: Number(distance.toFixed(1)),
+          driveTime: entry.driveTime || `${Math.max(2, Math.ceil(distance * 1.8))} min drive`,
+          hospitalNo: entry.hospitalNo,
+          source: 'mongodb-xlsx-import'
+        };
+      })
+      .filter(Boolean);
+  } catch (error) {
+    console.warn('MongoDB hospital lookup unavailable:', error.message || error);
+    return [];
+  }
+}
+
+function mergeNearbyHospitals(...hospitalLists) {
+  const merged = new Map();
+  for (const list of hospitalLists) {
+    for (const hospital of list || []) {
+      const key = String(hospital.name || '')
+        .toLowerCase()
+        .replace(/\bhospital\b/g, '')
+        .replace(/[^a-z0-9]/g, '');
+      if (!key) continue;
+      const existing = merged.get(key);
+      if (!existing || (existing.type === 'Unknown' && hospital.type !== 'Unknown')) {
+        merged.set(key, hospital);
+      }
+    }
+  }
+  return Array.from(merged.values()).sort((a, b) => a.distance - b.distance);
+}
+
 async function fetchGoogleNearbyHospitals(userLat, userLng, radiusKm) {
   if (!googlePlacesApiKey) return [];
 
@@ -2953,7 +3554,7 @@ async function fetchOpenStreetMapNearbyHospitals(userLat, userLng, radiusKm) {
   const top = userLat + latDelta;
   const bottom = userLat - latDelta;
 
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent('hospital')}&bounded=1&limit=40&viewbox=${left},${top},${right},${bottom}`;
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&extratags=1&q=${encodeURIComponent('hospital')}&bounded=1&limit=40&viewbox=${left},${top},${right},${bottom}`;
 
   const response = await fetch(url, {
     headers: {
@@ -2973,11 +3574,15 @@ async function fetchOpenStreetMapNearbyHospitals(userLat, userLng, radiusKm) {
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
       const distance = calculateDistance(userLat, userLng, lat, lng);
-      if (!Number.isFinite(distance) || distance > Math.max(radiusKm, 50)) return null;
+      if (!Number.isFinite(distance) || distance > radiusKm) return null;
 
       const displayName = String(place.display_name || '').trim();
       const parsedName = displayName ? displayName.split(',')[0].trim() : '';
-      const type = classifyHospitalOwnership(parsedName || 'Hospital');
+      const type = classifyHospitalOwnership(
+        parsedName || 'Hospital',
+        place.extratags?.operator || place.extratags?.['operator:type'],
+        place.extratags?.ownership || place.extratags?.operator_type
+      );
 
       return {
         name: parsedName || 'Nearby Hospital',
@@ -3034,16 +3639,12 @@ app.get('/api/hospitals/nearby', async (req, res) => {
 
     if (!nearby.length) {
       nearby = getLocalMumbaiNearbyHospitals(userLat, userLng, requestedRadius);
-      if (nearby.length) {
-        source = 'local-mumbai-dataset';
-      }
+      if (nearby.length) source = 'local-mumbai-dataset';
     }
 
     if (!nearby.length) {
-      nearby = await fetchOpenStreetMapNearbyHospitals(userLat, userLng, Math.max(requestedRadius, 20));
-      if (nearby.length) {
-        source = 'osm-nominatim';
-      }
+      nearby = await fetchOpenStreetMapNearbyHospitals(userLat, userLng, requestedRadius);
+      if (nearby.length) source = 'osm-nominatim';
     }
 
     if (!nearby.length) {
@@ -3208,7 +3809,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('driver-register', (payload = {}) => {
-    const normalizedLocation = buildDriverLocation(payload.location || {}, payload.location || {});
+    const normalizedLocation = payload.location
+      ? buildDriverLocation({ ...payload.location, simulated: false }, payload.location)
+      : null;
     const driverProfile = {
       driverId: payload.driverId || socket.id,
       loginId: payload.loginId || null,
@@ -3286,7 +3889,7 @@ io.on('connection', (socket) => {
   // Driver location update
   socket.on('location-update', async (data) => {
     const { driverId, lat, lng } = data;
-    const nextLocation = buildDriverLocation(data, { lat, lng });
+    const nextLocation = buildDriverLocation({ ...data, simulated: false }, { lat, lng });
     try {
       await Driver.findOneAndUpdate(
         { $or: [{ ambulanceId: driverId }, { driverId: driverId }, { loginId: driverId }] },
@@ -3373,6 +3976,16 @@ io.on('connection', (socket) => {
     const profileCitizenName = String(resolvedCitizenProfile?.name || '').trim();
     const profileCitizenPhone = String(resolvedCitizenProfile?.phone || '').trim();
 
+    const patientAddress = payload.patientAddress || {
+      building: payload.building || '',
+      roomNo: payload.roomNo || '',
+      landmark: payload.landmark || '',
+      area: payload.area || '',
+      city: payload.city || 'Mumbai',
+      state: payload.state || 'Maharashtra',
+      fullAddress: payload.fullAddress || ''
+    };
+
     const resolvedCitizenName = (!payloadCitizenName || genericCitizenNamePattern.test(payloadCitizenName))
       ? (profileCitizenName || payloadCitizenName || 'Unknown Citizen')
       : payloadCitizenName;
@@ -3419,6 +4032,8 @@ io.on('connection', (socket) => {
           socketId: socket.id
         },
         location: payload.location,
+        addressDetails: payload.patientAddress || {},
+        hospitalPreference: normalizeHospitalPreference(payload.hospitalPreference),
         emergencyType: payload.emergencyType || 'Emergency',
         description: payload.description || 'SOS request',
         priority: payload.priority || 'high',
@@ -3427,6 +4042,8 @@ io.on('connection', (socket) => {
       });
     } else {
       emergency.location = payload.location || emergency.location;
+      emergency.addressDetails = payload.patientAddress || emergency.addressDetails || {};
+      emergency.hospitalPreference = normalizeHospitalPreference(payload.hospitalPreference || emergency.hospitalPreference);
       emergency.emergencyType = payload.emergencyType || emergency.emergencyType;
       emergency.description = payload.description || emergency.description;
       emergency.priority = payload.priority || emergency.priority;
@@ -3443,10 +4060,58 @@ io.on('connection', (socket) => {
         phone: resolvedRequesterPhone || emergency.initiatedBy?.phone || resolvedCitizenPhone || '',
         socketId: socket.id
       };
-      emergency.status = 'pending';
+      const existingAssignedDispatch = activeDispatches.get(String(emergency._id));
+      if (!existingAssignedDispatch || existingAssignedDispatch.status !== 'assigned') {
+        emergency.status = 'pending';
+      }
     }
 
-    await emergency.save();
+    try {
+      await emergency.save();
+    } catch (error) {
+      console.error('Socket SOS persistence error:', error.message || error);
+      socket.emit('sos-save-failed', {
+        sosId,
+        message: 'SOS could not be saved. Please try again.'
+      });
+      return;
+    }
+
+    const existingDispatch = activeDispatches.get(String(emergency._id));
+    if (existingDispatch?.status === 'assigned') {
+      existingDispatch.citizenSocketId = socket.id;
+      activeDispatches.set(String(emergency._id), existingDispatch);
+      socket.emit('sos-assigned', {
+        sosId: String(emergency._id),
+        emergencyId: String(emergency._id),
+        driverId: existingDispatch.payload.driverId || null,
+        driverName: existingDispatch.payload.driverName || null,
+        vehicle: existingDispatch.payload.vehicle || null,
+        driverPhone: existingDispatch.payload.driverPhone || '',
+        driverDistanceKm: existingDispatch.payload.driverDistanceKm || null,
+        driverLocation: existingDispatch.payload.driverLocation || null,
+        patientLocation: existingDispatch.payload.patientLocation || emergency.location || null,
+        patientAddress: existingDispatch.payload.patientAddress || emergency.addressDetails || {},
+        citizenName: existingDispatch.payload.citizenName || emergency.citizenName || 'Unknown Citizen',
+        citizenPhone: existingDispatch.payload.citizenPhone || emergency.citizenPhone || '',
+        requesterName: existingDispatch.payload.requesterName || emergency.initiatedBy?.name || emergency.citizenName || '',
+        requesterPhone: existingDispatch.payload.requesterPhone || emergency.initiatedBy?.phone || emergency.citizenPhone || '',
+        initiatedBy: existingDispatch.payload.initiatedBy || emergency.initiatedBy || null,
+        assignedHospital: existingDispatch.payload.assignedHospital || emergency.assignedHospitalSnapshot || null,
+        assignmentBasis: existingDispatch.payload.assignmentBasis || null
+      });
+      return;
+    }
+
+    const contactAlertResult = await sendEmergencyContactAlerts(
+      payload.emergencyContacts,
+      payload.emergencyType || emergency.emergencyType || 'Emergency',
+      payload.location || emergency.location || null
+    );
+    if (contactAlertResult.sent > 0) {
+      console.log(`Emergency contact alerts sent: ${contactAlertResult.sent}`);
+    }
+    socket.emit('emergency-contact-alert-status', contactAlertResult);
     dispatchPayload.emergencyId = String(emergency._id);
     dispatchPayload.emergencyMongoId = String(emergency._id);
     dispatchPayload.medicalSnapshot = dispatchPayload.medicalSnapshot || emergency.medicalSnapshot || {};
@@ -3455,8 +4120,9 @@ io.on('connection', (socket) => {
     dispatchPayload.requesterName = dispatchPayload.requesterName || emergency.initiatedBy?.name || dispatchPayload.citizenName;
     dispatchPayload.requesterPhone = dispatchPayload.requesterPhone || emergency.initiatedBy?.phone || dispatchPayload.citizenPhone || '';
     dispatchPayload.patientLocation = payload.location || emergency.location || null;
-    dispatchPayload.priority = payload.priority || emergency.priority || 'high';
-
+      dispatchPayload.patientAddress = patientAddress;
+      dispatchPayload.priority = payload.priority || emergency.priority || 'high';
+      dispatchPayload.hospitalPreference = normalizeHospitalPreference(payload.hospitalPreference);
     activeDispatches.set(sosId, {
       citizenSocketId: socket.id,
       payload: dispatchPayload,
@@ -3480,8 +4146,9 @@ io.on('connection', (socket) => {
       if (!selected) {
         socket.emit('sos-no-driver', {
           sosId,
-          message: 'No available ambulance at the moment. Escalating to control room.'
+          message: 'No available ambulance at the moment. We will keep searching for the nearest driver.'
         });
+        scheduleDriverReassignment(sosId, 'no-available-driver');
         return;
       }
 
@@ -3499,9 +4166,14 @@ io.on('connection', (socket) => {
       dispatch.payload.driverSource = source;
       dispatch.payload.driverDistanceKm = normalizeDistanceKm(distanceKm);
       dispatch.payload.driverLocation = selected.location || null;
+      dispatch.payload.assignedAt = new Date();
+      dispatch.payload.hospitalPreference = normalizeHospitalPreference(payload.hospitalPreference);
+      dispatch.payload.patientAddress = payload.patientAddress || {};
       const suggestedHospital = await selectBestHospitalForEmergency(
         payload.emergencyType || emergency.emergencyType || 'Emergency',
-        dispatch.payload.patientLocation || payload.location || emergency.location || null
+        dispatch.payload.patientLocation || payload.location || emergency.location || null,
+        dispatch.payload.hospitalPreference?.specialty || 'auto',
+        dispatch.payload.hospitalPreference?.hospital || null
       );
       if (suggestedHospital) {
         dispatch.payload.assignedHospital = suggestedHospital;
@@ -3539,9 +4211,18 @@ io.on('connection', (socket) => {
         await Driver.findByIdAndUpdate(mongoId, { status: 'busy', isOnline: true });
       }
 
+      const assignedDriverMongoId = await resolveDriverMongoId(
+        mongoId,
+        selectedDriverId,
+        loginId,
+        ambulanceId,
+        driverName,
+        phone
+      );
       emergency.status = 'assigned';
-      emergency.assignedDriver = mongoId && mongoose.Types.ObjectId.isValid(String(mongoId)) ? mongoId : emergency.assignedDriver;
+      emergency.assignedDriver = assignedDriverMongoId || emergency.assignedDriver || null;
       emergency.assignedHospital = suggestedHospital?.hospitalId || emergency.assignedHospital || null;
+      emergency.assignedHospitalSnapshot = getHospitalSnapshot(suggestedHospital);
       emergency.assignedDriverSnapshot = {
         driverId: selectedDriverId || null,
         loginId: loginId || null,
@@ -3553,7 +4234,24 @@ io.on('connection', (socket) => {
         distanceKm: normalizeDistanceKm(distanceKm),
         location: selected.location || null
       };
-      await emergency.save();
+      appendAssignmentHistory(emergency, {
+        driverId: selectedDriverId,
+        driverMongoId: assignedDriverMongoId,
+        driverName,
+        ambulanceId,
+        vehicle,
+        distanceKm
+      }, 'assigned', 'nearest-driver');
+      try {
+        await emergency.save();
+      } catch (error) {
+        console.error('Socket SOS persistence error:', error.message || error);
+        socket.emit('sos-save-failed', {
+          sosId,
+          message: 'SOS could not be saved. Please try again.'
+        });
+        return;
+      }
 
       io.to(dispatch.citizenSocketId).emit('sos-assigned', {
         sosId,
@@ -3581,6 +4279,8 @@ io.on('connection', (socket) => {
           routeStage: 'to_patient'
         });
       }
+
+      scheduleDriverReassignment(sosId, 'driver-no-response');
     }, 1500 + Math.floor(Math.random() * 2500));
   });
 
@@ -3623,6 +4323,11 @@ io.on('connection', (socket) => {
         reason: `Dispatch already ${dispatch.status || 'updated'}`
       });
       return;
+    }
+
+    if (driverReassignmentTimers.has(payload.sosId)) {
+      clearTimeout(driverReassignmentTimers.get(payload.sosId));
+      driverReassignmentTimers.delete(payload.sosId);
     }
 
     const assignedKeys = [
@@ -3707,7 +4412,20 @@ io.on('connection', (socket) => {
 
       Emergency.findByIdAndUpdate(dispatch.payload.emergencyId, {
         status: 'enroute',
-        assignedDriver: assignedDriverMongoId || null
+        assignedDriver: assignedDriverMongoId || null,
+        $push: {
+          assignmentHistory: {
+            driverId: dispatch.payload.driverId || payload.driverId || null,
+            driverMongoId: assignedDriverMongoId || dispatch.payload.driverMongoId || null,
+            driverName: dispatch.payload.driverName || payload.driverName || 'Ambulance Driver',
+            ambulanceId: dispatch.payload.driverAmbulanceId || payload.vehicle || null,
+            status: 'accepted',
+            reason: 'Driver accepted the mission',
+            distanceKm: normalizeDistanceKm(dispatch.payload.driverDistanceKm),
+            assignedAt: dispatch.payload.assignedAt || new Date(),
+            respondedAt: new Date()
+          }
+        }
       }).catch(() => {});
     }
 
@@ -3740,6 +4458,25 @@ io.on('connection', (socket) => {
 
     dispatch.payload.declinedDriverKeys = Array.from(declinedKeys);
     dispatch.payload.declineCount = Number(dispatch.payload.declineCount || 0) + 1;
+
+    if (dispatch.payload.emergencyId && mongoose.Types.ObjectId.isValid(dispatch.payload.emergencyId)) {
+      await Emergency.findByIdAndUpdate(dispatch.payload.emergencyId, {
+        $push: {
+          assignmentHistory: {
+            driverId: dispatch.payload.driverId || payload.driverId || null,
+            driverMongoId: dispatch.payload.driverMongoId || null,
+            driverName: dispatch.payload.driverName || payload.driverName || 'Ambulance Driver',
+            ambulanceId: dispatch.payload.driverAmbulanceId || payload.vehicle || null,
+            status: 'declined',
+            reason: 'Driver declined the mission',
+            distanceKm: normalizeDistanceKm(dispatch.payload.driverDistanceKm),
+            assignedAt: dispatch.payload.assignedAt || new Date(),
+            respondedAt: new Date()
+          }
+        }
+      }).catch((error) => console.error('Assignment decline history error:', error.message || error));
+    }
+
     dispatch.status = 'pending';
     dispatch.payload.status = 'pending';
     dispatch.driverSocketId = null;
@@ -3776,9 +4513,12 @@ io.on('connection', (socket) => {
     dispatch.payload.driverSource = source;
     dispatch.payload.driverDistanceKm = normalizeDistanceKm(distanceKm);
     dispatch.payload.driverLocation = selected.location || null;
+    dispatch.payload.assignedAt = new Date();
     const reassignedHospital = dispatch.payload.assignedHospital || await selectBestHospitalForEmergency(
       dispatch.payload.emergencyType || 'Emergency',
-      dispatch.payload.patientLocation || dispatch.payload.location || null
+      dispatch.payload.patientLocation || dispatch.payload.location || null,
+      dispatch.payload.hospitalPreference?.specialty || 'auto',
+      dispatch.payload.hospitalPreference?.hospital || null
     );
     if (reassignedHospital) {
       dispatch.payload.assignedHospital = reassignedHospital;
@@ -3809,6 +4549,7 @@ io.on('connection', (socket) => {
       await Emergency.findByIdAndUpdate(dispatch.payload.emergencyId, {
         status: 'assigned',
         assignedDriver: mongoId && mongoose.Types.ObjectId.isValid(String(mongoId)) ? mongoId : null,
+        assignedHospitalSnapshot: getHospitalSnapshot(reassignedHospital),
         assignedHospital: reassignedHospital?.hospitalId || null,
         assignedDriverSnapshot: {
           driverId: selectedDriverId || null,
@@ -3820,8 +4561,21 @@ io.on('connection', (socket) => {
           source: source || 'dispatch-reassign',
           distanceKm: normalizeDistanceKm(distanceKm),
           location: selected.location || null
+        },
+        $push: {
+          assignmentHistory: {
+            driverId: selectedDriverId || null,
+            driverMongoId: mongoId || null,
+            driverName: driverName || 'Ambulance Driver',
+            ambulanceId: ambulanceId || vehicle || null,
+            status: 'assigned',
+            reason: 'previous-driver-declined',
+            distanceKm: normalizeDistanceKm(distanceKm),
+            assignedAt: new Date(),
+            respondedAt: null
+          }
         }
-      }).catch(() => {});
+      }).catch((error) => console.error('Decline reassignment persistence error:', error.message || error));
     }
 
     io.to(dispatch.citizenSocketId).emit('sos-assigned', {
@@ -3850,6 +4604,8 @@ io.on('connection', (socket) => {
         routeStage: 'to_patient'
       });
     }
+
+    scheduleDriverReassignment(payload.sosId, 'driver-no-response');
   });
 
   socket.on('driver-patient-picked', async (payload = {}) => {
@@ -3858,7 +4614,9 @@ io.on('connection', (socket) => {
 
     const hospital = await selectBestHospitalForEmergency(
       payload.emergencyType || dispatch.payload.emergencyType,
-      payload.patientLocation || dispatch.payload.patientLocation || dispatch.payload.location
+      payload.patientLocation || dispatch.payload.patientLocation || dispatch.payload.location,
+      dispatch.payload.hospitalPreference?.specialty || 'auto',
+      dispatch.payload.hospitalPreference?.hospital || null
     );
 
     if (!hospital) {

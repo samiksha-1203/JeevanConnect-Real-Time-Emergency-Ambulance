@@ -1578,12 +1578,12 @@ body::after {
 
             <div style="background:var(--dark2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">
               <div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;">TOTAL SOS TODAY</div>
-              <div class="mini-counter red" id="totalSOS">47</div>
+              <div class="mini-counter red" id="totalSOS">0</div>
             </div>
 
             <div style="background:var(--dark2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">
               <div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;">RESOLVED</div>
-              <div class="mini-counter green" id="totalResolved">44</div>
+              <div class="mini-counter green" id="totalResolved">0</div>
             </div>
 
             <div style="background:var(--dark2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">
@@ -1672,6 +1672,22 @@ let mapFilterMode = 'all';
 let sidebarMode = 'live-map';
 let googleMapsAuthFailed = false;
 
+function getDriverMapPosition(driver, index, drivers) {
+  const lat = Number(driver.location?.lat);
+  const lng = Number(driver.location?.lng);
+  const sameLocationIndex = drivers.slice(0, index).filter((candidate) =>
+    Number(candidate.location?.lat) === lat && Number(candidate.location?.lng) === lng
+  ).length;
+  if (!sameLocationIndex) return { lat, lng };
+
+  const angle = sameLocationIndex * (Math.PI / 4);
+  const radius = 0.0012 * Math.ceil((sameLocationIndex + 1) / 8);
+  return {
+    lat: lat + Math.sin(angle) * radius,
+    lng: lng + Math.cos(angle) * radius
+  };
+}
+
 window.gm_authFailure = function gmAuthFailureHandler() {
   googleMapsAuthFailed = true;
   if (adminMap) {
@@ -1754,12 +1770,8 @@ function updateTopKpis() {
   if (hospLabelEl) hospLabelEl.textContent = 'Hospitals (DB)';
 
   if (ambTrendEl) {
-    const baselineFleet = 20;
-    const delta = (fleetCountLoaded || 0) - baselineFleet;
-    const sign = delta >= 0 ? '+' : '';
-    const direction = delta >= 0 ? '↑' : '↓';
-    ambTrendEl.textContent = `${sign}${delta} ${direction}`;
-    ambTrendEl.className = `kpi-trend ${delta >= 0 ? 'up' : 'down'}`;
+    ambTrendEl.textContent = '● LIVE DB';
+    ambTrendEl.className = 'kpi-trend flat';
   }
 
   if (sosTrendEl) {
@@ -1979,29 +1991,6 @@ function createHospitalIcon() {
     scaledSize: new google.maps.Size(44, 56),
     anchor: new google.maps.Point(22, 54)
   };
-}
-
-const ADMIN_FALLBACK_HOSPITALS = [
-  { hospitalNo: 1, name: 'KEM Hospital', type: 'Government', specialties: ['Emergency', 'Trauma'], location: { lat: 18.9986, lng: 72.8437, address: 'Parel, Mumbai', city: 'Mumbai', state: 'Maharashtra' }, facilities: { icuBeds: 18, totalBeds: 420 }, phoneNumber: '02224107000', source: 'admin-fallback' },
-  { hospitalNo: 2, name: 'Sion Hospital', type: 'Government', specialties: ['Emergency', 'General Care'], location: { lat: 19.0467, lng: 72.8619, address: 'Sion, Mumbai', city: 'Mumbai', state: 'Maharashtra' }, facilities: { icuBeds: 12, totalBeds: 380 }, phoneNumber: '02224076381', source: 'admin-fallback' },
-  { hospitalNo: 3, name: 'Nair Hospital', type: 'Government', specialties: ['Emergency', 'Cardiac'], location: { lat: 18.9681, lng: 72.8190, address: 'Mumbai Central, Mumbai', city: 'Mumbai', state: 'Maharashtra' }, facilities: { icuBeds: 14, totalBeds: 310 }, phoneNumber: '02223027000', source: 'admin-fallback' },
-  { hospitalNo: 4, name: 'Rajawadi Hospital', type: 'Municipal', specialties: ['Emergency', 'General Care'], location: { lat: 19.0846, lng: 72.9069, address: 'Ghatkopar, Mumbai', city: 'Mumbai', state: 'Maharashtra' }, facilities: { icuBeds: 10, totalBeds: 240 }, phoneNumber: '02221022700', source: 'admin-fallback' },
-  { hospitalNo: 5, name: 'Cooper Hospital', type: 'Municipal', specialties: ['Emergency', 'General Care'], location: { lat: 19.1075, lng: 72.8372, address: 'Juhu, Mumbai', city: 'Mumbai', state: 'Maharashtra' }, facilities: { icuBeds: 9, totalBeds: 260 }, phoneNumber: '02226207254', source: 'admin-fallback' }
-];
-
-const ADMIN_FALLBACK_DRIVERS = [
-  { driverId: 'D101', loginId: 'drv101', name: 'Amit Patil', ambulanceId: 'AMB-101', phone: '9000000101', status: 'available', location: { lat: 19.0176, lng: 72.8562, address: 'Dadar, Mumbai, Maharashtra' }, vehicleType: 'Basic Life Support' },
-  { driverId: 'D102', loginId: 'drv102', name: 'Ravi Shinde', ambulanceId: 'AMB-102', phone: '9000000102', status: 'available', location: { lat: 19.0028, lng: 72.8304, address: 'Parel, Mumbai, Maharashtra' }, vehicleType: 'Basic Life Support' },
-  { driverId: 'D103', loginId: 'drv103', name: 'Nikhil Jadhav', ambulanceId: 'AMB-103', phone: '9000000103', status: 'available', location: { lat: 19.0721, lng: 72.8820, address: 'Kurla, Mumbai, Maharashtra' }, vehicleType: 'Advanced Life Support' },
-  { driverId: 'D104', loginId: 'drv104', name: 'Suresh More', ambulanceId: 'AMB-104', phone: '9000000104', status: 'available', location: { lat: 19.0454, lng: 72.8918, address: 'Sion, Mumbai, Maharashtra' }, vehicleType: 'Basic Life Support' }
-];
-
-function cloneFallbackHospitals() {
-  return ADMIN_FALLBACK_HOSPITALS.map((hospital) => ({ ...hospital, location: { ...hospital.location }, facilities: { ...hospital.facilities } }));
-}
-
-function cloneFallbackDrivers() {
-  return ADMIN_FALLBACK_DRIVERS.map((driver) => ({ ...driver, location: { ...driver.location } }));
 }
 
 async function fetchAllHospitalsForMap() {
@@ -2979,22 +2968,25 @@ async function loadFleetUnitsFromDb() {
     fleetUnits = allDrivers
       .filter((d) => d.location && typeof d.location.lat === 'number' && typeof d.location.lng === 'number')
       .map((d, idx) => {
-        const normalizedStatus = 'available';
         const driverLookupKeys = [d._id, d.id, d.driverId, d.loginId, d.ambulanceId, d.name]
           .filter(Boolean)
           .map((k) => String(k).toLowerCase());
         const assignment = driverLookupKeys.map((k) => latestAssignmentsByDriver.get(k)).find(Boolean) || null;
+        const assignmentStatus = String(assignment?.status || '').toLowerCase();
+        const isActivelyAssigned = ['assigned', 'enroute', 'arrived', 'hospital_assigned'].includes(assignmentStatus);
+        const normalizedStatus = isActivelyAssigned ? 'busy' : 'available';
 
         const locationMeta = formatDriverLocationText(d);
 
         return {
           id: d.ambulanceId || d.driverId || d.loginId || `AMB-${idx + 1}`,
-          status: normalizedStatus,
+            status: normalizedStatus,
           driver: d.name || 'Driver',
           emergency: assignment
             ? `${assignment.emergencyType || 'Emergency'} · ${String(assignment.status || '').toUpperCase()}`
             : 'Standby',
-          position: { lat: d.location.lat, lng: d.location.lng },
+          position: getDriverMapPosition(d, idx, allDrivers),
+          databasePosition: { lat: d.location.lat, lng: d.location.lng },
           locationSource: 'db',
           locationName: locationMeta.place,
           coordinateLabel: `${Number(d.location.lat).toFixed(5)}, ${Number(d.location.lng).toFixed(5)}`,
@@ -3042,7 +3034,7 @@ function loadAmbulanceMarkers() {
       map: adminMap,
       title: unit.id,
       icon: createAmbulanceIcon(unit.color),
-      animation: (unit.status === 'active' || unit.status === 'busy') ? google.maps.Animation.BOUNCE : null,
+      animation: null,
       zIndex: 100 + index
     });
 

@@ -1,403 +1,425 @@
 # Jeevan Connect
 
-Jeevan Connect is a real-time emergency response platform that connects citizens, ambulance drivers, hospitals, and dispatch/admin operations.
+Jeevan Connect is a real-time emergency response platform for citizens, ambulance drivers, hospitals, and dispatch administrators. A citizen can create an SOS request with live GPS coordinates, medical information, emergency type, hospital preference, and a detailed patient address. The backend assigns the nearest available ambulance and streams mission updates through Socket.IO.
 
-It includes:
-- OTP-based citizen authentication
-- Real-time SOS creation and dispatch assignment
-- Nearest-driver matching using live locations
-- Hospital discovery (Google Places, OSM, and local fallback)
-- Hospital-specific login and bed-capacity updates
-- Live Socket.IO mission lifecycle updates
+## Project status and completeness
 
-## Repository Structure
+This is a working academic/demo application with a complete end-to-end SOS path when MongoDB is available: citizen authentication -> SOS creation -> ambulance selection -> driver response -> hospital selection -> pickup -> completion. The REST API, MongoDB persistence, Socket.IO dispatch events, driver console, citizen tracking, hospital login/facility update path, and admin fleet views are implemented.
+
+The following parts are intentionally demo or simulation features rather than integrations with a real emergency-control system:
+
+- Driver locations can be seeded and normalized to named Mumbai reference locations. They are not a live GPS feed unless a driver browser sends location updates.
+- The hospital dashboard contains several illustrative resource, staff, vitals, and preparedness cards. Bed values and hospital facilities are the persisted hospital data; many other dashboard figures are static presentation values.
+- Google Maps, Google Places, Twilio SMS, and a custom OTP service are optional. Without them, maps/hospital discovery may fall back to local data and OTP may use the development demo code.
+- Admin migration and bootstrap endpoints are operational tools, not a separate admin authentication system.
+
+For a production release, add durable dispatch recovery/queues, role-based admin authentication, encrypted/hashed driver passwords, real hospital capacity feeds, audit logging, automated tests, and a real SMS/OTP provider. Do not treat the demo OTP, seeded credentials, estimated bed counts, or fallback hospital data as operational emergency data.
+
+## What the project includes
+
+- Citizen OTP authentication and medical profile management.
+- Citizen SOS creation, cancellation, status tracking, and live ambulance location.
+- Driver registration/login, online status, live location, dispatch acceptance, decline, pickup, and completion.
+- Nearest-available-driver selection using the Haversine distance formula.
+- Automatic reassignment to another available driver after the configured no-response window without acceptance (currently five minutes).
+- Immediate reassignment when a driver explicitly declines.
+- Emergency-type-aware hospital matching for eye, cancer, cardiac, respiratory, trauma, pediatric, and women's health cases.
+- Auto hospital preference and specialty preference captured from the SOS form.
+- Patient address details including building, room/flat, landmark, area, city, state, and full address.
+- Hospital login, JWT-protected hospital profile access, and bed/facility updates.
+- Admin fleet views, driver seeding, location-clustering utilities, and emergency migration helpers.
+- Hospital discovery through Google Places, MongoDB-imported data, local XLSX data, OpenStreetMap, and a hardcoded fallback.
+
+## Repository structure
 
 ```text
 FINAL_MAJOR/
 |-- README.md
 |-- .gitignore
 |-- frontend/
-|   |-- index.html                      # Landing page
-|   |-- citizen-dashboard.html          # Citizen app UI
-|   |-- ambulance-driver-dashboard.html # Driver app UI + map route rendering
-|   |-- hospital-dashboard.html         # Hospital login + bed management UI
-|   `-- admin-dashboard.html            # Admin/dispatch UI
+|   |-- index.html
+|   |-- citizen-dashboard.html
+|   |-- ambulance-driver-dashboard.html
+|   |-- hospital-dashboard.html
+|   `-- admin-dashboard.html
 `-- backend/
-    |-- server.js                       # Main Express + Socket.IO + Mongo runtime
-    |-- package.json                    # Backend scripts/dependencies
-    |-- .env.example                    # Environment template
-    |-- mumbai-hospitals-all.xlsx       # Local fallback hospital dataset
+    |-- server.js
+    |-- package.json
+    |-- package-lock.json
+    |-- .env.example
+    |-- mumbai-hospitals-all.xlsx
     `-- scripts/
-        |-- build-mumbai-hospitals-stationwise.js  # Dataset builder utility
-        `-- import-hospitals-to-mongodb.js         # XLSX -> Mongo import utility
+        |-- build-mumbai-hospitals-stationwise.js
+        `-- import-hospitals-to-mongodb.js
 ```
 
-### Backend Folder Responsibilities
-- `server.js` holds API routes, Mongoose schemas, JWT auth logic, hospital credential flows, and Socket.IO dispatch lifecycle.
-- `scripts/build-mumbai-hospitals-stationwise.js` is used to regenerate/prepare structured Mumbai hospital XLSX data.
-- `scripts/import-hospitals-to-mongodb.js` imports hospital rows into MongoDB with import source tagging.
+`backend/server.js` contains the Express API, MongoDB/Mongoose models, JWT authentication, hospital matching, dispatch state, and Socket.IO event handlers. The frontend is a set of static HTML/CSS/vanilla-JavaScript dashboards that use the backend REST API and Socket.IO server.
 
-### Frontend Folder Responsibilities
-- `index.html`: entry and role-based navigation UI.
-- `citizen-dashboard.html`: emergency request, profile/medical info, and dispatch status tracking.
-- `ambulance-driver-dashboard.html`: driver login, live location, dispatch actions, and route visualization.
-- `hospital-dashboard.html`: hospital login, authenticated session, and facilities/bed capacity updates.
-- `admin-dashboard.html`: admin operations and migration/cluster action triggers.
+## Technology stack
 
-## System Architecture (How It Works End-to-End)
+- **Frontend:** HTML5, CSS3, vanilla JavaScript, Socket.IO client, Google Maps JavaScript API.
+- **Backend:** Node.js, Express, Socket.IO, Mongoose, MongoDB.
+- **Authentication/security:** JWT, bcryptjs, Helmet, CORS, express-rate-limit.
+- **External services:** optional Twilio Verify/SMS, optional custom OTP service, optional Google Maps/Places.
+- **Data tooling:** XLSX for the Mumbai hospital dataset and MongoDB import.
 
-1. Citizen verifies phone (OTP) and creates SOS with location.
-2. Backend stores emergency and computes nearest available driver using Haversine distance.
-3. Driver receives live dispatch event via Socket.IO.
-4. Driver accepts mission; citizen receives acceptance and live ambulance location.
-5. When patient is picked, system assigns nearby hospital and updates both parties.
-6. Hospital can independently log in and maintain current bed capacities.
-7. Emergency is marked complete; statuses and timestamps are persisted for audit.
+## System flow
 
-### Runtime Components
-- API layer: Express REST endpoints for auth, emergency, hospital, and admin functions.
-- Real-time layer: Socket.IO for dispatch, acceptance, location streaming, and completion events.
-- Data layer: MongoDB + Mongoose schemas (`User`, `Driver`, `Emergency`, `Hospital`).
-- Mapping layer:
-  - Backend assignment: Haversine nearest-driver ranking.
-  - Frontend navigation: Google Directions path rendering in driver dashboard.
-  - Hospital discovery: Google Places -> local XLSX/DB -> OSM -> mock fallback chain.
+1. The citizen opens the citizen dashboard, authenticates by OTP, and allows browser location access.
+2. The citizen selects an emergency type, enters medical/address details, and chooses auto hospital assignment or a specialty preference.
+3. The frontend emits `citizen-sos-request` over Socket.IO. The backend creates or updates an `Emergency` document and stores the request in the in-memory `activeDispatches` map.
+4. After a short dispatch delay, available ambulance candidates are collected from online socket drivers and database drivers.
+5. Candidates are filtered, ranked by Haversine distance, and sent a `dispatch-call` event.
+6. The driver accepts, declines, or does not respond. A decline triggers immediate reassignment. A non-response timer runs for 120 seconds and then tries another candidate.
+7. After the patient is picked up, the backend selects a hospital using the requested specialty plus distance, then emits `hospital-assigned`.
+8. The driver completes the emergency. The backend persists the completed lifecycle and emits `emergency-completed`.
 
-## Database Design (MongoDB Collections)
+## Detailed implementation mechanics
 
-All core models are defined in `backend/server.js` using Mongoose.
+### Emergency state machine
 
-### 1) `users` Collection
-Stores citizen accounts and medical profile data.
+An emergency normally moves through `pending -> assigned -> enroute -> arrived -> completed`. A citizen or authorized flow can move a non-completed emergency to `cancelled`. If no driver is available, the dispatch remains pending and the server searches again. Assignment history records assigned, accepted, declined, timeout, and cancellation events, while driver and hospital snapshots preserve historical display data after related records change.
 
-Main fields:
-- `phone` (unique, required)
-- `name`, `email`, `bloodGroup`
-- `medicalProfile.organDonor`, `allergies`, `conditions`, `medications`, `emergencyNote`
-- `role` (`citizen` or `driver`)
-- `isVerified`, `lastLoginAt`, `createdAt`
+### Presence and dispatch data
 
-### 2) `drivers` Collection
-Stores ambulance driver identity, login, and live operational state.
+Socket connections register as citizens or drivers. `onlineDrivers` tracks live socket presence and location in memory; MongoDB `Driver` records provide the durable fleet list and fallback candidates. Candidate identifiers are normalized across MongoDB IDs, driver IDs, login IDs, ambulance IDs, phone numbers, and names to avoid assigning the same driver twice. A driver is marked busy by the live dispatch flow and becomes available again after cancellation or completion.
 
-Main fields:
-- `driverId` (unique, sparse)
-- `loginId` (unique, sparse)
-- `password` (default seeded value in current setup)
-- `phone` (unique, required), `name`, `licenseNumber`
-- `vehicleType`, `ambulanceId`
-- `status` (`available`, `busy`, `offline`), `isOnline`, `lastLoginAt`
-- `location.lat`, `location.lng`, `location.address`, `location.city`, `location.state`, `location.lastUpdated`
-- `createdAt`
+### Driver location safeguards
 
-### 3) `emergencies` Collection
-Stores complete emergency lifecycle from creation to completion/cancellation.
+Incoming coordinates are converted to numbers, matched to the nearest Mumbai reference locality, and suspicious water/outlier positions are snapped to a nearby land reference. This keeps seeded/demo markers visible on the city map. The returned location also includes a human-readable locality, city/state, simulated flag, and update timestamp.
 
-Main fields:
-- Citizen identity snapshot: `citizenName`, `citizenPhone`, `citizenId`
-- Request metadata: `requestChannel`, `initiatedBy`
-- Emergency details: `emergencyType`, `description`, `priority`
-- Incident location: `location.lat`, `location.lng`, `location.address`
-- Lifecycle state: `status` (`pending`, `assigned`, `enroute`, `arrived`, `completed`, `cancelled`)
-- Assignment data: `assignedDriver`, `assignedDriverSnapshot`, `assignedHospital`
-- Timeline: `ambulancePickedAt`, `hospitalAssignedAt`, `completedAt`, `cancelledAt`
-- Medical snapshot: `medicalSnapshot.*`
-- `createdAt`
+### Hospital selection mechanics
 
-### 4) `hospitals` Collection
-Stores hospital profile, location, service metadata, and bed capacities.
+The backend first queries Google nearby hospitals when configured, then local/imported Mumbai records, and finally the built-in fallback list. It normalizes the patient point, filters by an explicitly requested specialty when possible, calculates Haversine distance, and sorts by nearest distance. Hospitals within 0.15 km are resolved using specialty/capability score, trauma/cardiology/neuro signals, and ICU availability. The chosen result is upserted into MongoDB and stored as both a reference and a snapshot on the emergency.
 
-Main fields:
-- Identity: `name`, `hospitalNo`, `loginId`, `passwordHash`, `lastLoginAt`
-- Classification: `source`, `type`, `specialties`
-- Geo: `location.lat`, `location.lng`, `location.address`, `location.city`, `location.state`
-- Bed/facility capacity: `facilities.icuBeds`, `generalBeds`, `lowBeds`, `totalBeds`
-- Service availability: `services.opd`, `lab`, `bloodBank`, `parking`, `trauma`, `cardiology`
-- Optional info: `distance`, `driveTime`, `operatingHours`, `phoneNumber`, `rating`
-- `createdAt`
+### Timing and recovery behavior
 
-### Important Data Conventions
-- Hospital login IDs are maintained in `hosp0001` style for operator-friendly authentication.
-- Hospital credentials API exposes these IDs as Hospital No values in admin-facing lists.
-- Distance strategy for assignment is deterministic and auditable (`haversine-nearest`).
+Initial dispatch is delayed briefly to allow drivers to connect. The configured no-response reassignment timer is `300000` ms (five minutes); the persisted assignment history/message text should be treated as the source of operational truth until that wording is aligned. Active dispatches, socket presence, OTPs, and timers are process-memory state, so a server restart requires dispatch recovery work before production use. The admin dashboard caches recent assignments in browser storage when its live feed is temporarily unavailable.
 
-### Collection Relationships
-- `emergencies.citizenId` references `users._id`.
-- `emergencies.assignedDriver` references `drivers._id`.
-- `emergencies.assignedHospital` references `hospitals._id`.
-- `emergencies.assignedDriverSnapshot` stores immutable dispatch-time driver details for audit history.
+### Frontend responsibilities
 
-### Index/Constraint Highlights
-- Unique identifiers: `users.phone`, `drivers.phone`, `drivers.driverId`, `drivers.loginId`, `hospitals.loginId`.
-- Sparse unique keys on optional IDs avoid collisions when fields are not yet assigned.
-- Enum-based status constraints enforce controlled lifecycle transitions.
+- `index.html` handles citizen/driver entry, OTP flow, registration, seeded driver demo login, and redirects to role dashboards.
+- `citizen-dashboard.html` manages GPS permission, medical profile, emergency contacts, SOS form, first-aid content, hospital search/preferences, cancellation, and live ambulance tracking. Tracking is shown after driver acceptance/en-route state.
+- `ambulance-driver-dashboard.html` handles driver login, availability, location updates, dispatch confirmation, decline, navigation display, pickup, and emergency completion. Google Directions is used for route rendering when configured.
+- `hospital-dashboard.html` authenticates a hospital with JWT and persists ICU/general/low/total bed updates. Its alert, resource, staff, and preparedness widgets include static/demo presentation values.
+- `admin-dashboard.html` loads MongoDB drivers, hospitals, assignment history, active SOS data, analytics, and an optional Google fleet map. It has a local visual fallback when Google Maps credentials are unavailable.
 
-## Core Features Implemented
+### Data processing and deduplication
 
-### 1) Citizen Authentication and Emergency Flow
-- Citizen OTP flow via SMS providers (Twilio/custom verification service fallback).
-- Citizen profile endpoints for fetch/update.
-- Emergency creation endpoint with citizen identity support.
-- Emergency cancel endpoint.
-- Dispatch status tracking endpoint.
+The hospital builder queries station-centered Overpass/OpenStreetMap and optional Google Places data with retries, delays, pagination, checkpoint/resume support, coordinate/name deduplication, and XLSX output. The importer validates names and coordinates, removes duplicate rows, classifies ownership, estimates baseline facilities, and bulk-upserts hospitals by coordinates.
 
-### 2) Driver System and Nearest Driver Assignment
-- Driver register/login APIs.
-- Real-time driver online/offline and location updates through Socket.IO.
-- Nearest-driver selection based on geographic distance (Haversine distance logic in backend).
-- Assignment lifecycle handling:
-  - dispatch call sent
-  - accept/decline
-  - patient picked
-  - emergency completed
+## Dispatch algorithms
 
-### 3) Hospital Finder and Triage-Oriented Selection
-- Nearby hospitals endpoint with multi-source fallback strategy:
-  1. Google Places nearby hospitals
-  2. Local Mumbai fallback list
-  3. OpenStreetMap overpass fallback
-  4. Mock fallback (last resort)
-- Distance sorting and bed/availability-oriented metadata.
-- Hospital search and hospital details endpoints.
+### Driver availability
 
-### 4) Hospital Login and Bed Management
-- Hospital login bootstrap endpoint (bulk credential setup for imported hospitals).
-- Hospital login IDs in hosp0001 format.
-- Hospital credentials listing endpoint for admin usage.
-- Hospital auth endpoint that returns JWT.
-- Protected hospital profile endpoint.
-- Protected hospital facilities update endpoint:
-  - ICU beds
-  - General beds
-  - Low-acuity beds
-  - Total beds
-- Hospital dashboard integrated with login session storage and per-hospital updates.
+Driver candidates are assembled from the live `onlineDrivers` map and persisted `Driver` documents. A candidate must have a usable location and an available operational state. Previously declined or assigned driver identifiers are excluded using normalized driver keys.
 
-### 5) Real-Time System (Socket.IO)
-- Citizen and driver socket registration.
-- Dispatch event propagation in real time.
-- Location updates and mission state broadcasting.
-- Disconnect handling and availability transitions.
+### Haversine nearest-driver ranking
 
-#### Main Real-Time Events
-- Registration/state: `citizen-register`, `driver-register`, `driver-online`, `driver-status-update`
-- Location streaming: `location-update`, `driver-location-update`
-- Dispatch: `citizen-sos-request`, `dispatch-call`, `sos-pending`, `sos-assigned`, `sos-no-driver`
-- Driver decisions: `driver-accept-dispatch`, `driver-decline-dispatch`, `driver-accepted`
-- Mission progression: `driver-patient-picked`, `hospital-assigned`, `driver-emergency-completed`, `emergency-completed`
-- Cancellation/failure: `citizen-cancel-sos`, `sos-cancelled`, `hospital-selection-failed`
-
-### 6) Admin and Data Operations
-- Driver seeding endpoint.
-- Migration endpoints for:
-  - forcing availability/location
-  - clustering/randomizing driver positions
-  - smart Mumbai clustering
-  - emergency backfill and identity migration helpers
-- XLSX hospital build/import scripts for Mumbai data pipeline.
-
-## What Is Haversine (And Why Used Here)
-
-Haversine is a geographic formula used to compute the shortest straight-line distance between two points on Earth using latitude and longitude.
-
-In this project, it is used to rank nearest ambulance drivers quickly at dispatch time.
-
-Formula:
+The backend calculates straight-line distance between the patient's coordinates and each driver's coordinates:
 
 ```text
-a = sin^2((dLat)/2) + cos(lat1) * cos(lat2) * sin^2((dLon)/2)
-c = 2 * atan2(sqrt(a), sqrt(1-a))
-distance = R * c
+a = sin²((lat2 - lat1) / 2)
+  + cos(lat1) × cos(lat2) × sin²((lng2 - lng1) / 2)
+c = 2 × atan2(√a, √(1 - a))
+distanceKm = 6371 × c
 ```
 
-Where:
-- `R` = Earth radius (approximately 6371 km)
-- `lat1`, `lon1` = incident coordinate
-- `lat2`, `lon2` = driver coordinate
+The nearest candidate is selected and the dispatch stores an `assignmentBasis` object containing the method, selected distance, selected driver, and the top ranked candidates. This is deterministic and fast, but it is not road travel time. The driver dashboard uses Google route rendering separately for navigation.
 
-Why it is useful for dispatch:
-- Very fast computation (good for real-time matching).
-- Deterministic and easy to audit/debug.
-- Works even when road/traffic APIs are rate-limited or temporarily unavailable.
+### Driver reassignment
 
-Limitations to remember:
-- It is straight-line distance, not exact road travel time.
-- Final road route guidance still happens through map routing in the driver UI.
+- Initial dispatch is sent after a short connection/dispatch delay.
+- `scheduleDriverReassignment()` starts a 300,000 millisecond timer for an assigned driver.
+- The timer stops when the driver accepts or when the dispatch reaches a terminal/mission state.
+- If it expires while the dispatch is still assigned/pending, the current driver is added to the exclusion set and another nearest available driver is selected. The timeout history currently uses the explanatory text “within 2 minutes,” which should be aligned with the configured five-minute value before production deployment.
+- A driver decline performs the same candidate exclusion and reassignment immediately.
+- Dispatch state and reassignment timers are in process memory. Restarting the Node process clears active dispatches and timers.
 
-## How Matching Is Implemented
+### Hospital matching
 
-### Nearest Driver Logic
-- Driver locations are read from live socket updates and persisted driver state.
-- Distance between incident and driver is computed using Haversine formula.
-- Candidate drivers are filtered for availability and ranked by nearest distance.
-- Assignment metadata stores selection method (haversine-nearest) and timing details.
+`selectBestHospitalForEmergency()` first obtains nearby hospitals, then applies specialty hints from the emergency type or the requested specialty. Supported specialty hints include:
 
-### Nearest Hospital Logic
-- For user coordinates, backend requests nearby hospitals from Google Places first.
-- If unavailable/empty, it falls back to local curated Mumbai data.
-- If still empty, it uses OpenStreetMap query results.
-- Final fallback uses bundled mock hospital data.
-- Hospitals are normalized and sorted by nearest distance before response.
+| Preference | Example matching terms |
+|---|---|
+| `eye` | eye, vision, ophthalmology, retina, cornea |
+| `cancer` | cancer, oncology, tumor, radiology |
+| `heart` | heart, cardiac, cardiology, stroke |
+| `lung` | lung, respiratory, pulmonary, asthma |
+| `trauma` | trauma, injury, fracture, orthopedic, accident |
+| `child` | pediatric, paediatric, child, newborn |
+| `women` | women, maternity, gynecology, obstetric |
 
-## Routing Strategy
+Matching hospitals are distance-ranked. If no specialty match is available, the nearest hospital is used as a fallback. The current citizen UI stores `hospitalPreference.mode` as `auto` or `manual` and stores a specialty value; it does not yet submit a specific hospital ID for manual selection. Therefore, “Select hospital” currently means selecting a preferred specialty/matching mode, while the backend still chooses the best matching hospital.
 
-### Dispatch-Level Routing (Who Gets Assigned)
-- Ambulance assignment is distance-first and deterministic.
-- Backend computes straight-line distance using Haversine formula between SOS point and available drivers.
-- Driver choice is nearest-first, with tie-break logic only when candidates are almost equal.
-- Assignment metadata stores method as haversine-nearest for audit/debug visibility.
+## MongoDB models
 
-### Driver Navigation Routing (How Driver Travels)
-- Driver dashboard renders route using Google Directions APIs for map path visualization.
-- Route phase is dynamic:
-  - Ambulance -> Patient (pickup phase)
-  - Patient -> Hospital (transfer phase)
-- Traffic overlay in driver dashboard is intentionally disabled by default (stable emergency UI behavior).
-- Route summary (distance, ETA, speed) is shown live in the driver dashboard.
+All four models are defined in `backend/server.js`.
 
-### Why This Approach Is Useful for Emergency Dispatch
-- Fast and predictable assignment: nearest ambulance is selected immediately without waiting on traffic-model fluctuations.
-- Stable operations: assignment decisions stay consistent under frequent live updates.
-- Better control for triage: dispatch logic is transparent (distance-based), while navigation still uses road-aware route rendering.
-- In practice, this means the system prioritizes shortest-distance emergency pickup first, instead of continuously re-optimizing by traffic estimates.
+### User
 
-### Compared With Pure Google-Traffic Assignment
-- Pure traffic-time assignment can be more dynamic but may fluctuate rapidly during peak congestion.
-- This project currently prioritizes deterministic nearest-distance assignment for faster and more explainable dispatch.
-- If needed later, you can add a configurable mode to choose between:
-  - nearest-distance (current)
-  - fastest-eta (traffic-aware)
+Collection: `users`
 
-## API Overview
-
-### Health and Config
-- GET /health
-- GET /api/config
-
-### Citizen/Auth
-- POST /api/auth/send-otp
-- POST /api/auth/verify-otp
-- POST /api/auth/check-phone
-- POST /api/auth/register
-- GET /api/auth/me
-- GET /api/auth/profile
-- PUT /api/auth/profile
+- Identity: `phone` (required and unique), `name`, `email`.
+- Medical profile: `bloodGroup`, `medicalProfile.organDonor`, `allergies`, `conditions`, `medications`, `emergencyNote`.
+- Account: `role` (`citizen` or `driver`), `isVerified`, `lastLoginAt`, `createdAt`.
 
 ### Driver
-- POST /api/driver/register
-- POST /api/driver/login
-- GET /api/drivers
+
+Collection: `drivers`
+
+- Identity/login: `driverId`, `loginId`, `password`, `phone`, `name`, `licenseNumber`.
+- Vehicle: `vehicleType`, `ambulanceId`.
+- Availability: `status` (`available`, `busy`, `offline`), `isOnline`, `lastLoginAt`.
+- Location: `lat`, `lng`, `address`, `city`, `state`, `simulated`, `lastUpdated`.
 
 ### Emergency
-- POST /api/emergency
-- POST /api/emergency/:id/cancel
-- GET /api/emergency/:id/dispatch-status
+
+Collection: `emergencies`
+
+- Citizen/requester: `citizenName`, `citizenPhone`, `citizenId`, `requestChannel`, `initiatedBy`.
+- Incident: `emergencyType`, `description`, `priority`, `location`.
+- Patient address: `addressDetails.building`, `roomNo`, `landmark`, `area`, `city`, `state`, `fullAddress`.
+- Hospital request: `hospitalPreference.mode` (`auto` or `manual`) and `hospitalPreference.specialty`.
+- Lifecycle: `status` (`pending`, `assigned`, `enroute`, `arrived`, `completed`, `cancelled`).
+- Assignment: `assignedDriver`, `assignedDriverSnapshot`, `assignedHospital`.
+- Timeline: `ambulancePickedAt`, `hospitalAssignedAt`, `completedAt`, `cancelledAt`, `cancelledBy`.
+- Medical snapshot: blood group, organ donor status, allergies, conditions, medications, emergency note.
+
+### Hospital
+
+Collection: `hospitals`
+
+- Identity/login: `name`, `hospitalNo`, `loginId`, `passwordHash`, `lastLoginAt`.
+- Classification: `source`, `type` (`Government`, `Private`, `Trust`), `specialties`.
+- Location: latitude, longitude, address, city, state.
+- Discovery metadata: `distance`, `driveTime`, `operatingHours`, `phoneNumber`, `rating`.
+- Facilities: `icuBeds`, `generalBeds`, `lowBeds`, `totalBeds`.
+- Services: OPD state, laboratory, blood bank, parking, trauma, cardiology.
+
+Relationships are represented by `Emergency.citizenId -> User`, `Emergency.assignedDriver -> Driver`, and `Emergency.assignedHospital -> Hospital`. The emergency also stores an assignment snapshot so historical dispatch details remain available even if a driver's profile changes.
+
+## Hospital discovery sources
+
+Nearby results are merged from multiple sources rather than stopping at the first non-empty provider:
+
+1. MongoDB hospitals imported with `source: 'xlsx-import'`.
+2. The bundled local Mumbai hospital dataset.
+3. Google Places, when `GOOGLE_MAPS_API_KEY` or `GOOGLE_PLACES_API_KEY` is configured.
+4. OpenStreetMap/Overpass results where that route is used.
+5. A small hardcoded emergency fallback list when all other sources are empty.
+
+Duplicate names are collapsed and the combined result is sorted by calculated distance. Ownership uses explicit source/operator metadata where available. If Google or OpenStreetMap does not provide ownership evidence, the UI shows `Unknown` instead of incorrectly labeling the hospital as Private. Imported/local records can enrich a live result when they contain a verified ownership label.
+
+The application can run without Google credentials, but map rendering and Google Places results will be unavailable or fall back to local data.
+
+## REST API
+
+### Health/configuration
+
+- `GET /` - backend service information.
+- `GET /health` - health response and uptime.
+- `GET /api/config` - public runtime Google Maps key configuration.
+
+### Citizen authentication/profile
+
+- `POST /api/auth/send-otp`
+- `POST /api/auth/verify-otp`
+- `POST /api/auth/check-phone`
+- `POST /api/auth/register`
+- `GET /api/auth/me`
+- `GET /api/auth/profile`
+- `PUT /api/auth/profile`
+
+### Driver
+
+- `POST /api/driver/register`
+- `POST /api/driver/login`
+- `GET /api/drivers`
+
+### Emergency
+
+- `POST /api/emergency`
+- `POST /api/emergency/:id/cancel`
+- `GET /api/emergency/:id/dispatch-status`
 
 ### Hospitals
-- GET /api/hospitals/all
-- GET /api/hospitals/nearby
-- GET /api/hospitals/search
-- GET /api/hospitals/:id
-- GET /api/hospitals/map/:id
 
-### Hospital Account Management
-- POST /api/hospital/bootstrap-logins
-- POST /api/hospital/migrate-login-ids
-- GET /api/hospital/credentials
-- POST /api/hospital/login
-- GET /api/hospital/me
-- PUT /api/hospital/me/facilities
+- `GET /api/hospitals/all`
+- `GET /api/hospitals/nearby`
+- `GET /api/hospitals/search`
+- `GET /api/hospitals/:id`
+- `GET /api/hospitals/map/:id`
 
-### Admin/Migrations
-- POST /api/admin/seed/mumbai-drivers
-- GET /api/admin/ambulance-assignments
-- POST /api/admin/migrations/force-drivers-available-with-location
-- POST /api/admin/migrations/cluster-drivers-nearby
-- POST /api/admin/migrations/randomize-drivers-mumbai
-- POST /api/admin/migrations/smart-cluster-drivers-mumbai
-- POST /api/admin/migrations/backfill-emergency-assigned-driver
-- POST /api/admin/migrations/emergency-citizen-identity
+### Hospital accounts
 
-## Technology Stack
+- `POST /api/hospital/bootstrap-logins`
+- `POST /api/hospital/migrate-login-ids`
+- `GET /api/hospital/credentials`
+- `POST /api/hospital/login`
+- `GET /api/hospital/me` (hospital JWT required)
+- `PUT /api/hospital/me/facilities` (hospital JWT required)
 
-### Frontend
-- HTML5
-- CSS3
-- Vanilla JavaScript
-- Socket.IO client
-- Google Maps JavaScript integration
+### Admin and migration operations
 
-### Backend
-- Node.js
-- Express
-- Socket.IO
-- Mongoose
-- MongoDB
-- JWT (jsonwebtoken)
-- bcryptjs
-- helmet and express-rate-limit
-- Twilio SDK
-- xlsx for hospital data import
+Some operations require the `x-admin-key` header or `adminKey` request field when `ADMIN_MIGRATION_KEY` is configured.
 
-## Environment Variables
+- `POST /api/admin/seed/mumbai-drivers`
+- `GET /api/admin/ambulance-assignments`
+- `POST /api/admin/migrations/force-drivers-available-with-location`
+- `POST /api/admin/migrations/cluster-drivers-nearby`
+- `POST /api/admin/migrations/randomize-drivers-mumbai`
+- `POST /api/admin/migrations/smart-cluster-drivers-mumbai`
+- `POST /api/admin/migrations/backfill-emergency-assigned-driver`
+- `POST /api/admin/migrations/emergency-citizen-identity`
 
-Create backend/.env from backend/.env.example and set values:
+## Socket.IO events
 
-- PORT
-- MONGODB_URI
-- JWT_SECRET
-- GOOGLE_MAPS_API_KEY
-- GOOGLE_PLACES_API_KEY (optional override)
-- ADMIN_MIGRATION_KEY
-- RATE_LIMIT_WINDOW_MS
-- RATE_LIMIT_MAX
-- TWILIO_ACCOUNT_SID
-- TWILIO_AUTH_TOKEN
-- TWILIO_PHONE_NUMBER
-- TWILIO_VERIFY_SERVICE_SID
-- VERIFY_SERVICE_URL
-- VERIFY_SERVICE_API_KEY
-- VERIFY_SERVICE_AUTH_HEADER
+### Registration and presence
 
-## Local Setup
+`citizen-register`, `driver-register`, `driver-online`, `driver-status-update`, `dispatch-driver-count`
 
-1. Install backend dependencies:
+### Location
 
-   cd backend
-   npm install
+`location-update`, `driver-location-update`
 
-2. Start backend:
+### SOS/dispatch
 
-   npm start
+`citizen-sos-request`, `sos-pending`, `dispatch-call`, `sos-assigned`, `sos-no-driver`, `new-emergency`
 
-3. Open frontend pages from frontend folder in browser (or serve as static files).
+### Driver decisions and mission stages
 
-Backend default URL: http://localhost:5000
+`driver-accept-dispatch`, `driver-decline-dispatch`, `driver-accepted`, `driver-patient-picked`, `hospital-assigned`, `driver-emergency-completed`, `emergency-completed`
 
-## Data Scripts
+### Cancellation/failure
 
-From backend folder:
+`citizen-cancel-sos`, `sos-cancelled`, `sos-cancel-failed`, `hospital-selection-failed`, `dispatch-accept-ignored`
 
-- npm run build:hospitals:mumbai
-- npm run import:hospitals:mongodb
+## Environment variables
 
-### Why These Scripts Are Kept
-- `build:hospitals:mumbai` is for regenerating or updating structured Mumbai hospital datasets when source data changes.
-- `import:hospitals:mongodb` is required to populate MongoDB hospital records used by hospital login/facilities management APIs.
-- If MongoDB already has valid `source='xlsx-import'` hospital records, you do not need to run import on every startup.
+Copy `backend/.env.example` to `backend/.env` and adjust the values:
 
-## GitHub Push Checklist
+```env
+PORT=5000
+MONGODB_URI=mongodb://localhost:27017/jeevanconnect
+JWT_SECRET=replace_with_a_long_random_secret
+GOOGLE_MAPS_API_KEY=replace_with_google_maps_key
 
-1. Ensure backend/.env is not committed.
-2. Ensure logs and temporary files are excluded by .gitignore.
-3. Run:
+# Optional Twilio Verify/SMS configuration
+TWILIO_ACCOUNT_SID=...
+TWILIO_AUTH_TOKEN=...
+TWILIO_PHONE_NUMBER=+1234567890
+TWILIO_VERIFY_SERVICE_SID=...
 
-   git add .
-   git status
-   git commit -m "Project cleanup and README update"
-   git push
+# Optional custom verification service
+VERIFY_SERVICE_URL=https://your-verify-service.com/api/send-otp
+VERIFY_SERVICE_API_KEY=...
+VERIFY_SERVICE_AUTH_HEADER=Authorization
 
-## Notes
+# Optional admin protection and rate-limit tuning
+ADMIN_MIGRATION_KEY=replace_with_admin_key
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX=1200
+```
 
-- This repository now excludes one-off debug scripts and generated log artifacts used during local troubleshooting.
-- Hospital login IDs are maintained in hosp0001 format and exposed as Hospital No in credentials responses.
+If Twilio/custom verification is not configured, the backend uses its local demo OTP behavior and logs the OTP in the backend console. Do not use that fallback for production. Keep `backend/.env` private and never commit it.
+
+## How to run on Windows
+
+### Prerequisites
+
+- Node.js 18 or newer recommended.
+- MongoDB running locally, or a reachable MongoDB Atlas connection string.
+- Optional: Google Maps/Places key for maps and Google hospital discovery.
+- Optional: Twilio or a custom OTP provider for real SMS verification.
+
+### 1. Install backend dependencies
+
+Open PowerShell in the repository root:
+
+```powershell
+cd backend
+npm install
+```
+
+Create `backend/.env` from `backend/.env.example`, then make sure MongoDB is running. With a local MongoDB service, the default database is `jeevanconnect`.
+
+### 2. Start the backend
+
+From the `backend` directory:
+
+```powershell
+npm start
+```
+
+The backend listens on `http://localhost:5000` by default. Verify it with:
+
+```powershell
+Invoke-WebRequest http://localhost:5000/health
+```
+
+For development auto-restart:
+
+```powershell
+npm run dev
+```
+
+Run `npm start` from `backend`, not from the repository root. If it exits with code 1, inspect the console message first; common causes are an already-used port, missing backend dependencies, malformed `.env`, or MongoDB being unavailable.
+
+### 3. Open the frontend
+
+Open the HTML pages directly from the `frontend` folder, or use the VS Code Live Server extension:
+
+- `frontend/index.html`
+- `frontend/citizen-dashboard.html`
+- `frontend/ambulance-driver-dashboard.html`
+- `frontend/hospital-dashboard.html`
+- `frontend/admin-dashboard.html`
+
+The frontend connects to the backend at `http://localhost:5000`.
+
+### 4. Optional hospital dataset import
+
+From `backend`:
+
+```powershell
+npm run build:hospitals:mumbai
+npm run import:hospitals:mongodb
+```
+
+The build script queries station-area sources and writes `mumbai-hospitals-all.xlsx`. It supports checkpoint/resume flags such as `--reset`, `--from=<station>`, and `--limit=<number>`. The import script reads the XLSX file, removes invalid/duplicate rows, classifies hospitals, estimates initial facilities, and upserts records with `source: 'xlsx-import'`.
+
+After importing, bootstrap hospital credentials through the protected admin endpoint. The default generated login format is `hosp0001`, `hosp0002`, and so on. The default bootstrap password is `Hosp@123` unless another password is supplied. Change it before any real deployment.
+
+## Verification commands
+
+From the repository root:
+
+```powershell
+node --check backend/server.js
+```
+
+With the backend running:
+
+```powershell
+Invoke-WebRequest http://localhost:5000/health
+Invoke-WebRequest http://localhost:5000/api/config
+```
+
+For a functional test, open the citizen and driver dashboards in separate browser windows, register/login a driver, allow location access, create a citizen SOS, and verify `dispatch-call`, driver acceptance, hospital assignment, live location, and completion events.
+
+## Operational limitations
+
+- Active dispatches, online drivers, and the two-minute reassignment timers are held in Node process memory. A process restart loses active dispatch state; MongoDB retains persisted emergency records.
+- Haversine distance is not driving distance or traffic-aware ETA.
+- The current UI does not send a specific hospital ID for manual selection; it sends mode and specialty preference.
+- Google Maps/Places features require a valid, appropriately restricted API key. Local hospital fallback and non-map dispatch logic can work without it.
+- The bundled hospital import assigns baseline facility estimates; bed counts should be verified and updated by hospital operators.
+- Demo OTP fallback and seeded/default credentials are development conveniences and must be replaced or protected in production.
+
+## Security notes
+
+- Use a strong `JWT_SECRET`, `ADMIN_MIGRATION_KEY`, and MongoDB credentials.
+- Restrict Google API keys by application and API.
+- Do not expose hospital credential lists or admin migration endpoints publicly without access controls.
+- Do not commit `.env`, OTP logs, generated checkpoints, or production credentials.

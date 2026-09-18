@@ -32,7 +32,18 @@ function classifyHospitalOwnership(name = '') {
     lower.includes('kem') ||
     lower.includes('nair hospital') ||
     lower.includes('sion hospital') ||
-    lower.includes('st george')
+    lower.includes('st george') ||
+    lower.includes('rajawadi') ||
+    lower.includes('muktabai') ||
+    lower.includes('muktai') ||
+    lower.includes('bhabha') ||
+    lower.includes('cooper hospital') ||
+    lower.includes('lokmanya tilak') ||
+    lower.includes('v.n. desai') ||
+    lower.includes('kasturba') ||
+    lower.includes('shatabdi') ||
+    lower.includes('sevenhills') ||
+    lower.includes('balasaheb thackeray')
   ) {
     return 'Government';
   }
@@ -45,7 +56,11 @@ function classifyHospitalOwnership(name = '') {
     return 'Trust';
   }
 
-  return 'Private';
+  if (lower.includes('private') || lower.includes('pvt') || lower.includes('ltd') || lower.includes('corporate')) {
+    return 'Private';
+  }
+
+  return 'Unknown';
 }
 
 function estimateHospitalFacilitiesByType(type) {
@@ -94,7 +109,7 @@ const HospitalSchema = new mongoose.Schema({
   name: { type: String, required: true },
   hospitalNo: Number,
   source: { type: String, default: 'system' },
-  type: { type: String, enum: ['Government', 'Private', 'Trust'], default: 'Government' },
+  type: { type: String, enum: ['Government', 'Private', 'Trust', 'Unknown'], default: 'Unknown' },
   specialties: [String],
   location: {
     lat: { type: Number, required: true },
@@ -144,7 +159,6 @@ async function main() {
     return {
       updateOne: {
         filter: {
-          name: row.name,
           'location.lat': row.lat,
           'location.lng': row.lng
         },

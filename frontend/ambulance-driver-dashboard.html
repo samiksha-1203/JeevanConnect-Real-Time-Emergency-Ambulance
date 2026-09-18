@@ -1160,7 +1160,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       ambulanceId: currentDriverProfile?.ambulanceId || null,
       name: currentDriverProfile?.name || 'Ambulance Driver',
       vehicle: currentDriverProfile?.ambulanceId || 'A-UNIT',
-      location: driverCurrentLocation,
+      location: lastLiveGpsLocation,
       isAvailable: isAvailable
     };
   }
@@ -2478,8 +2478,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   function getDriverSocketPayload() {
     return {
       driverId: currentDriverProfile?.id || currentDriverProfile?._id || currentDriverProfile?.driverId || null,
-      lat: Number(driverCurrentLocation?.lat),
-      lng: Number(driverCurrentLocation?.lng)
+      lat: Number(lastLiveGpsLocation?.lat),
+      lng: Number(lastLiveGpsLocation?.lng),
+      simulated: false
     };
   }
 
@@ -2510,7 +2511,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         driverCurrentLocation = { lat: liveLocation.lat, lng: liveLocation.lng };
         emitDriverLocationUpdate();
       }, () => {
-        // Keep DB/fallback location if browser GPS fails.
         gpsSyncState = 'fallback';
       }, {
         enableHighAccuracy: true,
