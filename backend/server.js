@@ -2534,6 +2534,171 @@ app.post('/api/driver/login', async (req, res) => {
   }
 });
 
+app.post('/api/driver/emergencies/:id/action', async (req, res) => {
+  try {
+    const token = getTokenFromRequest(req);
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'Driver authentication required' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'jeevanconnect_secret');
+    if (decoded.role !== 'driver' || !decoded.driverId) {
+      return res.status(403).json({ success: false, message: 'Driver access required' });
+    }
+
+    const driver = await Driver.findById(decoded.driverId);
+    if (!driver) {
+      return res.status(401).json({ success: false, message: 'Driver account not found' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'A valid emergency ID is required' });
+    }
+
+    const emergency = await Emergency.findById(req.params.id);
+    if (!emergency) {
+      return res.status(404).json({ success: false, message: 'Emergency not found' });
+    }
+
+    const assignedDriverId = emergency.assignedDriver
+      ? String(emergency.assignedDriver)
+      : await resolveDriverMongoId(
+        emergency.assignedDriverSnapshot?.driverId,
+        emergency.assignedDriverSnapshot?.loginId,
+        emergency.assignedDriverSnapshot?.ambulanceId,
+        emergency.assignedDriverSnapshot?.phone
+      );
+    if (!assignedDriverId || assignedDriverId !== String(driver._id)) {
+      return res.status(403).json({ success: false, message: 'Only the assigned driver can update this emergency' });
+    }
+
+    const action = String(req.body?.action || '').trim().toLowerCase();
+    if (!['accept', 'pickup', 'complete'].includes(action)) {
+      return res.status(400).json({ success: false, message: 'Action must be accept, pickup, or complete' });
+    }
+
+    let hospital = null;
+    if (action === 'accept') {
+      if (emergency.status === 'completed' || emergency.status === 'cancelled') {
+        return res.status(409).json({ success: false, message: `Emergency is already ${emergency.status}` });
+      }
+      if (emergency.status === 'pending' || emergency.status === 'assigned') {
+        emergency.status = 'enroute';
+        appendAssignmentHistory(emergency, {
+          driverId: driver.driverId || String(driver._id),
+          driverMongoId: String(driver._id),
+          driverName: driver.name,
+          ambulanceId: driver.ambulanceId,
+          distanceKm: emergency.assignedDriverSnapshot?.distanceKm
+        }, 'accepted', 'Driver accepted the mission');
+        await emergency.save();
+      } else if (emergency.status !== 'enroute' && emergency.status !== 'arrived') {
+        return res.status(409).json({ success: false, message: `Cannot accept an emergency that is ${emergency.status}` });
+      }
+      await Driver.findByIdAndUpdate(driver._id, { status: 'busy', isOnline: true });
+    } else if (action === 'pickup') {
+      if (emergency.status === 'arrived' && emergency.assignedHospitalSnapshot) {
+        hospital = {
+          name: emergency.assignedHospitalSnapshot.name,
+          type: emergency.assignedHospitalSnapshot.type,
+          phoneNumber: emergency.assignedHospitalSnapshot.phoneNumber,
+          location: emergency.assignedHospitalSnapshot.location
+        };
+      } else {
+        if (emergency.status !== 'enroute') {
+          return res.status(409).json({ success: false, message: `Cannot record pickup while emergency is ${emergency.status}` });
+        }
+
+        hospital = await selectBestHospitalForEmergency(
+          emergency.emergencyType || 'Emergency',
+          emergency.location,
+          emergency.hospitalPreference?.specialty || 'auto',
+          emergency.hospitalPreference?.hospital || null
+        );
+        if (!hospital) {
+          return res.status(503).json({ success: false, message: 'No suitable hospital could be selected' });
+        }
+
+        emergency.status = 'arrived';
+        emergency.ambulancePickedAt = new Date();
+        emergency.hospitalAssignedAt = new Date();
+        emergency.assignedHospital = hospital.hospitalId || null;
+        emergency.assignedHospitalSnapshot = getHospitalSnapshot(hospital);
+        await emergency.save();
+      }
+    } else {
+      if (emergency.status === 'completed') {
+        await Driver.findByIdAndUpdate(driver._id, { status: 'available', isOnline: true });
+        return res.json({ success: true, status: 'completed', emergencyId: String(emergency._id), alreadyCompleted: true });
+      }
+      if (emergency.status === 'cancelled') {
+        return res.status(409).json({ success: false, message: 'Cancelled emergencies cannot be completed' });
+      }
+      if (!['enroute', 'arrived'].includes(emergency.status)) {
+        return res.status(409).json({ success: false, message: `Cannot complete an emergency that is ${emergency.status}` });
+      }
+
+      emergency.status = 'completed';
+      emergency.completedAt = new Date();
+      await emergency.save();
+      await Driver.findByIdAndUpdate(driver._id, { status: 'available', isOnline: true });
+    }
+
+    const emergencyId = String(emergency._id);
+    for (const [sosId, dispatch] of activeDispatches.entries()) {
+      const dispatchEmergencyId = String(dispatch?.payload?.emergencyId || dispatch?.payload?.emergencyMongoId || '');
+      if (dispatchEmergencyId !== emergencyId) continue;
+
+      const nextStatus = action === 'accept' ? 'enroute' : action === 'pickup' ? 'hospital_assigned' : 'completed';
+      dispatch.status = nextStatus;
+      dispatch.payload.status = nextStatus;
+      if (hospital) dispatch.payload.assignedHospital = hospital;
+      activeDispatches.set(sosId, dispatch);
+
+      if (driverReassignmentTimers.has(sosId)) {
+        clearTimeout(driverReassignmentTimers.get(sosId));
+        driverReassignmentTimers.delete(sosId);
+      }
+
+      if (action === 'accept') {
+        if (dispatch.citizenSocketId) io.to(dispatch.citizenSocketId).emit('driver-accepted', {
+          sosId,
+          driverId: String(driver._id),
+          driverName: driver.name,
+          vehicle: driver.ambulanceId || driver.vehicleType || 'Ambulance Unit',
+          driverPhone: driver.phone || '',
+          driverLocation: driver.location || null,
+          acceptedAt: Date.now()
+        });
+      } else if (action === 'pickup') {
+        if (dispatch.citizenSocketId) io.to(dispatch.citizenSocketId).emit('hospital-assigned', {
+          sosId,
+          hospital,
+          patientLocation: emergency.location,
+          emergencyType: emergency.emergencyType || 'Emergency'
+        });
+      } else {
+        if (dispatch.citizenSocketId) io.to(dispatch.citizenSocketId).emit('emergency-completed', { sosId, completedAt: Date.now() });
+      }
+      break;
+    }
+
+    if (action === 'complete') {
+      return res.json({ success: true, status: 'completed', emergencyId });
+    }
+    if (action === 'pickup') {
+      return res.json({ success: true, status: 'arrived', emergencyId, hospital });
+    }
+    return res.json({ success: true, status: emergency.status, emergencyId });
+  } catch (error) {
+    console.error('Driver emergency action error:', error.message || error);
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return res.status(401).json({ success: false, message: 'Driver session is invalid or expired' });
+    }
+    return res.status(500).json({ success: false, message: 'Failed to update emergency status' });
+  }
+});
+
 app.post('/api/emergency', async (req, res) => {
   try {
     console.log('POST /api/emergency called with body:', JSON.stringify(req.body).substring(0, 200));

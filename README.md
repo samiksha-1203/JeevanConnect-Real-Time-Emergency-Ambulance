@@ -127,6 +127,10 @@ An explicit driver decline triggers a new selection excluding that driver. A no-
 
 The in-memory `onlineDrivers`, `activeDispatches`, and timer maps are process-local. They are lost on a backend restart; persisted emergency records remain in MongoDB, but there is no durable queue or complete live-dispatch recovery mechanism.
 
+### Driver mission status updates
+
+The driver dashboard sends accept, pickup, and completion actions to `POST /api/driver/emergencies/:id/action` using the driver's JWT. The backend verifies the authenticated driver owns the assignment and writes each lifecycle change to MongoDB before confirming it to the dashboard. This makes those actions survive a Render process restart even though Socket.IO dispatch state itself remains process-local. Socket.IO is still used for immediate citizen notifications when the corresponding live dispatch is present; persisted status remains the source of truth for dashboard polling.
+
 ### Driver coordinates
 
 Incoming driver coordinates are converted and compared with named Mumbai reference points to infer a locality. Suspected outliers or coordinates considered far from the reference set can be snapped to a reference land point. This is a demo safeguard to keep markers in the target region; it is not a GPS validation or safety system. Seeded/sample coordinates are simulated, not live.
@@ -188,6 +192,7 @@ Routes are implemented in `backend/server.js`. Unless noted, requests/responses 
 |---|---|---|
 | `POST` | `/api/driver/register` | Register a driver |
 | `POST` | `/api/driver/login` | Driver login |
+| `POST` | `/api/driver/emergencies/:id/action` | Authenticated driver accepts, records pickup/hospital assignment, or completes an assigned emergency |
 | `GET` | `/api/drivers` | List driver records for dashboards |
 | `POST` | `/api/emergency` | Persist an emergency and attempt initial dispatch |
 | `POST` | `/api/emergency/:id/cancel` | Cancel an eligible emergency |

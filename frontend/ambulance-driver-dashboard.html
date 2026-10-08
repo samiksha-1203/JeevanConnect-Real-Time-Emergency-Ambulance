@@ -870,6 +870,26 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     }
   }
 
+  async function requestDriverEmergencyAction(action) {
+    const token = localStorage.getItem('token');
+    const emergencyId = currentDispatch?.emergencyId || currentDispatch?.sosId;
+    if (!token || !emergencyId) return null;
+
+    const response = await fetch(`${API_BASE_URL}/api/driver/emergencies/${encodeURIComponent(emergencyId)}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ action })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || `Could not ${action} this mission`);
+    }
+    return data;
+  }
+
   async function fetchDriverFromDb(profile) {
     if (!profile) return null;
     try {
@@ -1188,6 +1208,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   let isAvailable = true;
   let currentDispatch = null;
   let missionAccepted = false;
+  let missionActionInProgress = false;
   let recentlyCompletedSosId = null;
   let recentlyCompletedUntil = 0;
   let gpsWatchId = null;
@@ -1213,27 +1234,27 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         return;
       }
       missionActionsEl.innerHTML =
-        `<button class="btn-accept" onclick="openAcceptModal()">✓ ACCEPT MISSION</button>
-         <button class="btn-decline" onclick="declineMission()">✕</button>`;
+        `<button class="btn-accept" onclick="openAcceptModal()" ${missionActionInProgress ? 'disabled' : ''}>${missionActionInProgress ? '⏳ UPDATING...' : '✓ ACCEPT MISSION'}</button>
+         <button class="btn-decline" onclick="declineMission()" ${missionActionInProgress ? 'disabled' : ''}>✕</button>`;
       return;
     }
 
     if (missionAccepted || isAcceptedDispatchStatus(statusLower)) {
       if (hospitalTransferActive) {
         missionActionsEl.innerHTML =
-          `<button class="btn-accept" style="background:linear-gradient(135deg,#0369a1,#0284c7);" onclick="markEmergencyComplete()">🏁 MARK COMPLETE</button>
-           <button class="btn-decline" onclick="rerouteHospitalRoute()">🏥 REROUTE TO HOSPITAL</button>`;
+          `<button class="btn-accept" style="background:linear-gradient(135deg,#0369a1,#0284c7);" onclick="markEmergencyComplete()" ${missionActionInProgress ? 'disabled' : ''}>${missionActionInProgress ? '⏳ UPDATING...' : '🏁 MARK COMPLETE'}</button>
+           <button class="btn-decline" onclick="rerouteHospitalRoute()" ${missionActionInProgress ? 'disabled' : ''}>🏥 REROUTE TO HOSPITAL</button>`;
       } else {
         missionActionsEl.innerHTML =
-          `<button class="btn-accept" style="background:linear-gradient(135deg,#0369a1,#0284c7);" onclick="markEmergencyComplete()">🏁 MARK COMPLETE</button>
-           <button class="btn-decline" onclick="markPatientPicked()">📍 PATIENT PICKED</button>`;
+          `<button class="btn-accept" style="background:linear-gradient(135deg,#0369a1,#0284c7);" onclick="markEmergencyComplete()" ${missionActionInProgress ? 'disabled' : ''}>${missionActionInProgress ? '⏳ UPDATING...' : '🏁 MARK COMPLETE'}</button>
+           <button class="btn-decline" onclick="markPatientPicked()" ${missionActionInProgress ? 'disabled' : ''}>📍 PATIENT PICKED</button>`;
       }
       return;
     }
 
     missionActionsEl.innerHTML =
-      `<button class="btn-accept" onclick="openAcceptModal()">✓ ACCEPT MISSION</button>
-       <button class="btn-decline" onclick="declineMission()">✕</button>`;
+      `<button class="btn-accept" onclick="openAcceptModal()" ${missionActionInProgress ? 'disabled' : ''}>${missionActionInProgress ? '⏳ UPDATING...' : '✓ ACCEPT MISSION'}</button>
+       <button class="btn-decline" onclick="declineMission()" ${missionActionInProgress ? 'disabled' : ''}>✕</button>`;
   }
 
   async function applyDispatchToMission(call) {
@@ -1371,27 +1392,41 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     if (e.target === document.getElementById('acceptOverlay')) closeAcceptModal();
   });
 
-  function confirmAccept() {
+  async function confirmAccept() {
     if (!currentDispatch || !currentDispatch.sosId) {
       showToast('No active dispatch to accept');
       return;
     }
+    if (missionActionInProgress) return;
     if (missionAccepted) {
       showToast('✅ Mission already accepted');
       closeAcceptModal();
       return;
     }
 
+    missionActionInProgress = true;
+    renderMissionActions();
+    let actionResult;
+    try {
+      actionResult = await requestDriverEmergencyAction('accept');
+    } catch (error) {
+      showToast(`Could not accept mission: ${error.message}`);
+      missionActionInProgress = false;
+      renderMissionActions();
+      return;
+    }
+
     missionAccepted = true;
-    currentDispatch.status = 'enroute';
+    currentDispatch.status = actionResult?.status || 'enroute';
     closeAcceptModal();
+    missionActionInProgress = false;
     renderMissionActions();
     document.getElementById('statusPill').className = 'status-pill busy';
     document.getElementById('statusLabel').textContent = 'BUSY';
     isAvailable = false;
 
     if (currentDispatch && currentDispatch.sosId) {
-      if (dispatchSocket && dispatchSocket.connected) {
+      if (!actionResult && dispatchSocket && dispatchSocket.connected) {
         dispatchSocket.emit('driver-accept-dispatch', {
           sosId: currentDispatch.sosId,
           driverId: currentDriverProfile?.id || currentDriverProfile?.driverId || null,
@@ -1465,9 +1500,22 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       showToast('No active mission to update');
       return;
     }
+    if (missionActionInProgress) return;
 
     const patientLocation = currentDispatch.patientLocation || currentDispatch.location || fallbackDestination;
-    if (dispatchSocket && dispatchSocket.connected) {
+    missionActionInProgress = true;
+    renderMissionActions();
+    let actionResult;
+    try {
+      actionResult = await requestDriverEmergencyAction('pickup');
+    } catch (error) {
+      showToast(`Could not update pickup: ${error.message}`);
+      missionActionInProgress = false;
+      renderMissionActions();
+      return;
+    }
+
+    if (!actionResult && dispatchSocket && dispatchSocket.connected) {
       dispatchSocket.emit('driver-patient-picked', {
         sosId: currentDispatch.sosId,
         driverId: currentDriverProfile?.driverId || currentDriverProfile?.id || null,
@@ -1477,8 +1525,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     }
 
     missionAccepted = true;
-    currentDispatch.status = 'patient_picked';
+    currentDispatch.status = actionResult?.status || 'patient_picked';
+    if (actionResult?.hospital) currentDispatch.assignedHospital = actionResult.hospital;
     routePhase = 'to_hospital';
+    hospitalRouteLocked = true;
+    missionActionInProgress = false;
     renderMissionActions();
 
     await rerouteHospitalRoute(false);
@@ -1486,15 +1537,27 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     showToast('📍 Patient picked up. Selecting hospital...');
   }
 
-  function markEmergencyComplete() {
+  async function markEmergencyComplete() {
     if (!currentDispatch || !currentDispatch.sosId) {
       showToast('No active mission to complete');
       return;
     }
+    if (missionActionInProgress) return;
 
     const completedSosId = currentDispatch.sosId;
+    missionActionInProgress = true;
+    renderMissionActions();
+    let actionResult;
+    try {
+      actionResult = await requestDriverEmergencyAction('complete');
+    } catch (error) {
+      showToast(`Could not complete mission: ${error.message}`);
+      missionActionInProgress = false;
+      renderMissionActions();
+      return;
+    }
 
-    if (dispatchSocket && dispatchSocket.connected) {
+    if (!actionResult && dispatchSocket && dispatchSocket.connected) {
       dispatchSocket.emit('driver-emergency-completed', {
         sosId: currentDispatch.sosId,
         driverId: currentDriverProfile?.driverId || currentDriverProfile?.id || null
@@ -1511,6 +1574,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     lastSyncRenderKey = null;
     routePhase = 'to_patient';
     currentDispatch = null;
+    missionActionInProgress = false;
     clearAcceptedDispatchMarker();
     markRecentlyCompletedSos(completedSosId);
     renderMissionActions();
