@@ -31,7 +31,6 @@ FINAL_MAJOR/
 |   |-- index.html
 |   |-- citizen-dashboard.html
 |   |-- ambulance-driver-dashboard.html
-|   |-- hospital-dashboard.html
 |   `-- admin-dashboard.html
 `-- backend/
     |-- server.js
@@ -44,7 +43,7 @@ FINAL_MAJOR/
         `-- import-hospitals-to-mongodb.js
 ```
 
-The frontend consists of five standalone HTML pages with inline CSS and JavaScript; it has no bundler or frontend package manifest. `backend/server.js` contains the Express routes, Mongoose schemas, Socket.IO handlers, dispatch logic, and hospital lookup logic. The two backend scripts collect and import hospital data. The XLSX is a bundled dataset. There is no repository-level `package.json`, Netlify configuration file, or Render manifest.
+The frontend consists of four standalone HTML pages with inline CSS and JavaScript; it has no bundler or frontend package manifest. `backend/server.js` contains the Express routes, Mongoose schemas, Socket.IO handlers, dispatch logic, and hospital lookup logic. The two backend scripts collect and import hospital data. The XLSX is a bundled dataset. There is no repository-level `package.json`, Netlify configuration file, or Render manifest.
 
 ## Technology and architecture
 
@@ -74,11 +73,9 @@ The Express server does not serve the static frontend. The browser calls the con
 3. Receive a dispatch, accept or decline it, and report patient pickup and emergency completion.
 4. View patient/hospital details and map/navigation helpers in the driver dashboard.
 
-### Hospital
+### Hospital data
 
-1. Sign in with a hospital account provisioned in the backend.
-2. View the hospital dashboard and update supported facility/bed fields.
-3. Some staff, preparedness, vitals, and resource-request panels are illustrative UI and are not backed by a live hospital information system.
+Hospital matching, discovery, and stored facility data remain part of the backend and citizen experience. The standalone hospital staff dashboard has been removed; there is no hospital-facing frontend for login or facility updates.
 
 ### Administrator
 
