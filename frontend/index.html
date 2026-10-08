@@ -1505,10 +1505,20 @@
         .then(data => {
             if (data.success) {
                 document.getElementById('otpPhone').textContent = '+91 ' + phone;
-                document.getElementById('otpHintText').textContent = data.demoOtp ? `Demo OTP: ${data.demoOtp}` : 'Enter the OTP sent to your phone.';
+                document.getElementById('otpHintText').textContent = data.demoOtp
+                    ? `SMS was not sent. Development demo OTP: ${data.demoOtp}`
+                    : data.smsStatus === 'sent'
+                        ? 'OTP sent by SMS. Check your messages.'
+                        : 'OTP request accepted, but SMS delivery is not confirmed.';
                 showTab('otp');
                 setupOTPBoxes(document.querySelectorAll('#citizenSection .otp-box'));
-                alert('OTP request sent. If SMS is not configured, use the demo OTP shown on screen.');
+                if (data.smsStatus === 'sent') {
+                    alert('OTP sent by SMS. Check your messages.');
+                } else if (data.demoOtp) {
+                    alert('No SMS was sent. Use the development demo OTP shown on the verification screen.');
+                } else {
+                    alert('The OTP request was accepted, but SMS delivery is not confirmed. Check the verification screen for details.');
+                }
             } else {
                 alert('Failed to send OTP: ' + data.message);
             }

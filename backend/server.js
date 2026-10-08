@@ -27,13 +27,7 @@ const formatPhoneE164 = (phone) => {
   const normalized = String(phone || '').replace(/[\s()-]/g, '');
   return normalized.startsWith('+') ? normalized : `+91${normalized}`;
 };
-const twilioVerifiedPhones = new Set(
-  String(process.env.TWILIO_VERIFIED_PHONES || '')
-    .split(',')
-    .map((phone) => formatPhoneE164(phone).trim())
-    .filter((phone) => /^\+\d{8,15}$/.test(phone))
-);
-  const demoOtpEnabled = String(process.env.DEMO_OTP_ENABLED || 'true').toLowerCase() === 'true';
+const demoOtpEnabled = String(process.env.DEMO_OTP_ENABLED || 'true').toLowerCase() === 'true';
 
 function signAuthToken(payload) {
   return jwt.sign(payload, process.env.JWT_SECRET || 'jeevanconnect_secret', { expiresIn: '7d' });
@@ -124,9 +118,6 @@ async function resolveDriverMongoId(...candidates) {
 
 async function sendOtpViaTwilioVerify(phone) {
   const recipient = formatPhoneE164(phone);
-  if (!twilioVerifiedPhones.has(recipient)) {
-    return { sent: false, error: 'This number is not in the configured Twilio recipient list.' };
-  }
   if (!twilioClient || !twilioVerifyServiceSid) return { sent: false, error: 'Twilio Verify is not configured.' };
   try {
     const verification = await twilioClient.verify.v2
@@ -1561,8 +1552,6 @@ app.post('/api/auth/send-otp', async (req, res) => {
     let smsStatus = 'skipped';
     let smsProvider = 'none';
     let smsError = null;
-    const twilioRecipient = formatPhoneE164(phone);
-    const isConfiguredTwilioRecipient = twilioVerifiedPhones.has(twilioRecipient);
 
     if (twilioVerifyServiceSid) {
       const result = await sendOtpViaTwilioVerify(phone);
@@ -1584,12 +1573,13 @@ app.post('/api/auth/send-otp', async (req, res) => {
       }
     }
 
-    if (isConfiguredTwilioRecipient && smsStatus !== 'sent') {
+    if (twilioVerifyServiceSid && smsStatus !== 'sent') {
+      otpStore.delete(phone);
       return res.status(502).json({
         success: false,
-        message: 'Twilio could not send the OTP to this configured recipient.',
+        message: 'Twilio Verify could not send the OTP.',
         provider: 'twilio-verify',
-        error: smsError || 'Check Twilio Verify recipient verification, service configuration, and account status.'
+        error: smsError || 'Check Twilio Verify service configuration and account status.'
       });
     }
 
