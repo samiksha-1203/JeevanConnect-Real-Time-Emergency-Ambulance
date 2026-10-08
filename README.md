@@ -378,6 +378,8 @@ Open the HTML pages directly from the `frontend` folder, or use the VS Code Live
 
 The frontend connects to the backend at `http://localhost:5000`.
 
+When hosted, the frontend uses `https://jeevanconnect-real-time-emergency.onrender.com` by default unless `window.__API_BASE_URL__` or a non-local `apiBaseUrl` browser setting is provided. Set the Render backend's `FRONTEND_URL` environment variable to the exact deployed frontend origin when using a different Netlify domain; this also enables Socket.IO cross-origin connections.
+
 ### 4. Optional hospital dataset import
 
 From `backend`:

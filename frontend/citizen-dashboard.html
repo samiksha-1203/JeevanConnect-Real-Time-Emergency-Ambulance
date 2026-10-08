@@ -846,11 +846,16 @@
 <script src="https://jeevanconnect-real-time-emergency.onrender.com/socket.io/socket.io.js"></script>
 <script>
     const API_BASE_URL = window.__API_BASE_URL__ || (() => {
+        const remoteApiUrl = 'https://jeevanconnect-real-time-emergency.onrender.com';
+        const isLocalFrontend = location.protocol === 'file:' || ['localhost', '127.0.0.1'].includes(location.hostname);
         try {
-            return localStorage.getItem('apiBaseUrl') || 'http://localhost:5000';
+            const saved = localStorage.getItem('apiBaseUrl') || '';
+            const isLocalApi = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(saved);
+            if (saved && (isLocalFrontend || !isLocalApi)) return saved;
         } catch (_) {
-            return 'http://localhost:5000';
+            // Use the deployment-appropriate default when browser storage is unavailable.
         }
+        return isLocalFrontend ? 'http://localhost:5000' : remoteApiUrl;
     })();
     let googleMapsLoadPromise = null;
     let leafletLoadPromise = null;

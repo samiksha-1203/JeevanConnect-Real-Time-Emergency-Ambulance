@@ -237,7 +237,9 @@ const io = socketIo(server, {
       'http://localhost:3000',
       'http://127.0.0.1:3000',
       'http://localhost:8080',
-      'http://127.0.0.1:8080'
+      'http://127.0.0.1:8080',
+      'https://jeevanconnect1.netlify.app',
+      ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL.replace(/\/$/, '')] : [])
     ],
     methods: ["GET", "POST"]
   }

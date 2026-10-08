@@ -1238,18 +1238,21 @@
     document.addEventListener('click', () => { if (!sirenPlayed) { sirenPlayed = true; playSiren(); } }, { once: true });
 
     const FALLBACK_REMOTE_API = 'https://jeevanconnect-real-time-emergency.onrender.com';
+    const LOCAL_API_URL = 'http://localhost:5000';
+    const isLocalFrontend = location.protocol === 'file:' || ['localhost', '127.0.0.1'].includes(location.hostname);
     const savedApiBase = (() => {
         try {
             const saved = localStorage.getItem('apiBaseUrl') || '';
-            return saved === FALLBACK_REMOTE_API ? '' : saved;
+            const isLocalApi = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(saved);
+            return saved === FALLBACK_REMOTE_API || (!isLocalFrontend && isLocalApi) ? '' : saved;
         } catch (_) {
             return '';
         }
     })();
-    const apiBase = window.__API_BASE_URL__ || savedApiBase || 'http://localhost:5000';
+    const apiBase = window.__API_BASE_URL__ || savedApiBase || (isLocalFrontend ? LOCAL_API_URL : FALLBACK_REMOTE_API);
     const apiBaseCandidates = Array.from(new Set([
         apiBase,
-        'http://localhost:5000',
+        LOCAL_API_URL,
         FALLBACK_REMOTE_API
     ].filter(Boolean)));
 

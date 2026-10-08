@@ -837,11 +837,16 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-hei
 
 <script>
 const API_BASE_URL = window.__API_BASE_URL__ || (() => {
+  const remoteApiUrl = 'https://jeevanconnect-real-time-emergency.onrender.com';
+  const isLocalFrontend = location.protocol === 'file:' || ['localhost', '127.0.0.1'].includes(location.hostname);
   try {
-    return localStorage.getItem('apiBaseUrl') || 'http://localhost:5000';
+    const saved = localStorage.getItem('apiBaseUrl') || '';
+    const isLocalApi = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(saved);
+    if (saved && (isLocalFrontend || !isLocalApi)) return saved;
   } catch (_) {
-    return 'http://localhost:5000';
+    // Use the deployment-appropriate default when browser storage is unavailable.
   }
+  return isLocalFrontend ? 'http://localhost:5000' : remoteApiUrl;
 })();
 const HOSPITAL_TOKEN_KEY = 'hospital.auth.token.v1';
 const HOSPITAL_PROFILE_KEY = 'hospital.auth.profile.v1';
