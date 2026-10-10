@@ -1495,7 +1495,7 @@ body::after {
             <div class="kpi-trend flat">DATABASE</div>
           </div>
           <div class="kpi-value" id="kpi-amb">--</div>
-          <div class="kpi-label">Drivers Marked Online</div>
+          <div class="kpi-label">Available Drivers</div>
         </div>
 
         <div class="kpi-card red">
@@ -1532,7 +1532,7 @@ body::after {
         <!-- Map panel -->
         <div class="panel map-panel-full">
           <div class="panel-header">
-            <div class="panel-title">🗺️ Fleet Map · Database Locations</div>
+            <div class="panel-title">🗺️ Fleet Map · Reported GPS</div>
             <div class="map-header-actions">
               <div class="panel-badge" id="mapFleetSummaryBadge">DB FLEET</div>
               <div class="panel-actions" id="mapFilterActions">
@@ -1559,6 +1559,7 @@ body::after {
                 <div class="legend-item"><div class="legend-dot standby"></div>Standby</div>
                 <div class="legend-item"><div class="legend-dot idle"></div>Idle</div>
               </div>
+              <div class="analytics-caption">Only non-simulated GPS locations reported by drivers are plotted. Seeded/demo locations are excluded.</div>
             </div>
 
           </div>
@@ -1613,16 +1614,42 @@ body::after {
                 <th>SOS MAKER NO</th>
                 <th>DRIVER ASSIGNED</th>
                 <th>STATUS</th>
-                <th>COMPLETED</th>
+                <th>CREATED</th>
               </tr>
             </thead>
             <tbody id="activeSosTableBody">
               <tr>
-                <td colspan="5">Loading active SOS...</td>
+                <td colspan="5">Loading today’s SOS records...</td>
               </tr>
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">🕰️ Older Unresolved SOS Records</div>
+          <div class="panel-badge" id="staleSosCountBadge">LOADING</div>
+        </div>
+        <div class="active-sos-table-wrap">
+          <table class="active-sos-table">
+            <thead>
+              <tr>
+                <th>SOS NO</th>
+                <th>SOS MAKER NO</th>
+                <th>DRIVER ASSIGNED</th>
+                <th>STATUS</th>
+                <th>CREATED</th>
+              </tr>
+            </thead>
+            <tbody id="staleSosTableBody">
+              <tr>
+                <td colspan="5">Loading older SOS records...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="analytics-caption">These records remain unresolved in the database but were not created today. Review and close them in the database if they are test or abandoned SOS calls.</div>
       </div>
 
       <!-- RESPONSE CHART + EMERGENCY TYPES -->
@@ -1756,7 +1783,7 @@ window.gm_authFailure = function gmAuthFailureHandler() {
 
 function rebuildLatestAssignmentsIndex() {
   latestAssignmentsByDriver = new Map();
-  latestAssignments.forEach((assignment) => {
+  latestAssignments.filter((assignment) => isCreatedTodayInIndia(assignment)).forEach((assignment) => {
     const driver = assignment?.driver || {};
     const keys = [driver.id, driver.vehicle, driver.name, driver.loginId, driver.ambulanceId, driver.driverId]
       .filter(Boolean)
@@ -1806,8 +1833,8 @@ function updateTopKpis() {
   const hospValueEl = document.getElementById('kpi-beds');
   const hospLabelEl = document.getElementById('kpi-beds-label');
 
-  const onlineDrivers = allDrivers.filter((driver) => Boolean(driver.isOnline)).length;
-  if (ambValueEl) ambValueEl.textContent = fleetFeedAvailable ? String(onlineDrivers) : '—';
+  const availableDrivers = allDrivers.filter((driver) => String(driver.status || '').toLowerCase() === 'available').length;
+  if (ambValueEl) ambValueEl.textContent = fleetFeedAvailable ? String(availableDrivers) : '—';
   if (sosValueEl) sosValueEl.textContent = todayAnalytics ? String(todayAnalytics.activeNow) : '—';
   if (responseValueEl) {
     responseValueEl.textContent = todayAnalytics?.averagePickupMinutes == null
@@ -1822,8 +1849,8 @@ function updateSidebarBadges() {
   const ambEl = document.getElementById('navBadgeAmbulances');
   const hospEl = document.getElementById('navBadgeHospitals');
   const sosEl = document.getElementById('navBadgeActiveSos');
-  const onlineDrivers = allDrivers.filter((driver) => Boolean(driver.isOnline)).length;
-  if (ambEl) ambEl.textContent = fleetFeedAvailable ? String(onlineDrivers) : '—';
+  const availableDrivers = allDrivers.filter((driver) => String(driver.status || '').toLowerCase() === 'available').length;
+  if (ambEl) ambEl.textContent = fleetFeedAvailable ? String(availableDrivers) : '—';
   if (hospEl) hospEl.textContent = hospitalFeedAvailable ? String(hospitalCountLoaded) : '—';
   if (sosEl) sosEl.textContent = todayAnalytics ? String(todayAnalytics.activeNow) : '—';
   updateTopKpis();
@@ -1834,7 +1861,7 @@ function getCancelableActiveAssignments() {
   return latestAssignments.filter((item) => {
     const status = String(item.status || '').toLowerCase();
     const isActive = ['pending', 'assigned', 'enroute', 'arrived', 'hospital_assigned'].includes(status);
-    return isActive && Boolean(item.emergencyId);
+    return isActive && isCreatedTodayInIndia(item) && Boolean(item.emergencyId);
   });
 }
 
@@ -2519,7 +2546,10 @@ function renderSelectedAssignmentCard() {
   if (!card) return;
 
   const priority = { enroute: 1, assigned: 2, hospital_assigned: 3, pending: 4, arrived: 5, completed: 99 };
-  const active = [...latestAssignments].sort((a, b) => {
+  const todayOpenAssignments = latestAssignments.filter((assignment) =>
+    isCreatedTodayInIndia(assignment) && isOpenEmergency(assignment)
+  );
+  const active = [...todayOpenAssignments].sort((a, b) => {
     const pa = priority[String(a.status || '').toLowerCase()] || 50;
     const pb = priority[String(b.status || '').toLowerCase()] || 50;
     if (pa !== pb) return pa - pb;
@@ -2537,8 +2567,11 @@ function renderSelectedAssignmentCard() {
   }
 
   const liveSummary = getAssignmentSummary(active);
-  const cachedSummary = getAssignmentSummary(assignmentCacheSnapshot[0]);
-  const hasCachedSnapshot = !!assignmentCacheSnapshot.length;
+  const cachedActive = assignmentCacheSnapshot.find((assignment) =>
+    isCreatedTodayInIndia(assignment) && isOpenEmergency(assignment)
+  );
+  const cachedSummary = getAssignmentSummary(cachedActive);
+  const hasCachedSnapshot = Boolean(cachedActive);
 
   card.innerHTML = `
     <div class="selection-title">CURRENT DRIVER SELECTION</div>
@@ -2633,20 +2666,51 @@ async function loadAmbulanceAssignments() {
   }
 }
 
+function getIndiaDateKey(value) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function isCreatedTodayInIndia(item) {
+  const recordDate = getIndiaDateKey(item?.createdAt);
+  return Boolean(recordDate && recordDate === getIndiaDateKey(Date.now()));
+}
+
+function isOpenEmergency(item) {
+  return ['pending', 'assigned', 'enroute', 'arrived', 'hospital_assigned']
+    .includes(String(item?.status || '').toLowerCase());
+}
+
+function formatSosCreatedAt(item) {
+  const date = new Date(item?.createdAt);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' })
+    : 'Unknown';
+}
+
 function renderAssignmentList() {
   const listEl = document.getElementById('assignmentList');
   const badgeEl = document.getElementById('fleetCountBadge');
   if (!listEl) return;
 
+  const todaysAssignments = latestAssignments.filter(isCreatedTodayInIndia);
   const assignedKeys = new Set();
-  latestAssignments.forEach((item) => {
+  todaysAssignments.forEach((item) => {
     const driver = item.driver || {};
     [driver.id, driver.vehicle, driver.name, driver.loginId, driver.ambulanceId, driver.driverId]
       .filter(Boolean)
       .forEach((key) => assignedKeys.add(String(key).toLowerCase()));
   });
 
-  const assignmentRows = latestAssignments
+  const assignmentRows = todaysAssignments
     .filter((item) => {
       if (sidebarMode !== 'active-sos') return true;
       const status = String(item.status || '').toLowerCase();
@@ -2698,6 +2762,7 @@ function renderAssignmentList() {
       const visual = getAssignmentVisual(status === 'available' ? 'pending' : status);
       const vehicle = driver.ambulanceId || driver.driverId || driver.loginId || 'Ambulance Unit';
       const iconClass = status === 'available' ? 'standby' : 'idle';
+      const locationSource = driver.location?.simulated ? 'Seeded/demo location (not live GPS)' : 'Reported GPS';
       const statusLine = status === 'available'
         ? 'Standby · waiting for SOS'
         : status === 'busy'
@@ -2711,7 +2776,7 @@ function renderAssignmentList() {
           <div class="amb-driver-icon ${iconClass}">🚑</div>
           <div class="amb-item-info">
             <div class="amb-item-id">${escapeHtml(vehicle)} · NO-SOS</div>
-            <div class="amb-item-status">${escapeHtml(driver.name || 'Driver')} · ${escapeHtml(statusLine)} · 📍 ${escapeHtml(location.full)}</div>
+            <div class="amb-item-status">${escapeHtml(driver.name || 'Driver')} · ${escapeHtml(statusLine)} · 📍 ${escapeHtml(location.full)} · ${escapeHtml(locationSource)}</div>
           </div>
           <div class="amb-item-right">
             <div class="amb-item-eta">${status === 'available' ? 'READY' : 'IDLE'}</div>
@@ -2750,12 +2815,19 @@ function renderActiveSosTable() {
   if (!bodyEl) return;
 
   const activeRows = latestAssignments.filter((item) => {
-    const status = String(item.status || '').toLowerCase();
-    return ['pending', 'assigned', 'enroute', 'arrived', 'hospital_assigned'].includes(status);
+    return isOpenEmergency(item) && isCreatedTodayInIndia(item);
   });
+  const staleRows = latestAssignments.filter((item) =>
+    isOpenEmergency(item) && !isCreatedTodayInIndia(item)
+  );
+  const staleBodyEl = document.getElementById('staleSosTableBody');
+  const staleBadgeEl = document.getElementById('staleSosCountBadge');
 
   if (badgeEl) {
     badgeEl.textContent = `${assignmentFeedSource === 'live' ? '' : 'CACHED · '}${activeRows.length} ACTIVE`;
+  }
+  if (staleBadgeEl) {
+    staleBadgeEl.textContent = `${assignmentFeedSource === 'live' ? '' : 'CACHED · '}${staleRows.length} OLDER`;
   }
 
   if (!activeRows.length) {
@@ -2764,27 +2836,45 @@ function renderActiveSosTable() {
         <td colspan="5">${assignmentFeedSource === 'live' ? 'No open SOS records right now' : 'Live assignment feed unavailable; cached data may be incomplete.'}</td>
       </tr>
     `;
-    return;
+  } else {
+    bodyEl.innerHTML = activeRows.map((item) => {
+      const driver = resolveAssignmentDriverDetails(item);
+      const citizen = resolveAssignmentCitizenDetails(item);
+      const sosNo = item.sosId || item.emergencyId || '--';
+      const driverName = driver.name || driver.vehicle || 'Not assigned';
+      const status = String(item.status || 'pending').toUpperCase();
+
+      return `
+        <tr>
+          <td>${escapeHtml(sosNo)}</td>
+          <td>${escapeHtml(citizen.phone || '--')}</td>
+          <td>${escapeHtml(driverName)}</td>
+          <td class="pending">${escapeHtml(status)}</td>
+          <td>${escapeHtml(formatSosCreatedAt(item))}</td>
+        </tr>
+      `;
+    }).join('');
   }
 
-  bodyEl.innerHTML = activeRows.map((item) => {
-    const driver = resolveAssignmentDriverDetails(item);
-    const citizen = resolveAssignmentCitizenDetails(item);
-    const sosNo = item.sosId || item.emergencyId || '--';
-    const driverName = driver.name || driver.vehicle || 'Not assigned';
-    const status = String(item.status || 'pending').toUpperCase();
-    const completed = ['completed', 'resolved', 'closed'].includes(String(item.status || '').toLowerCase());
-
-    return `
-      <tr>
-        <td>${escapeHtml(sosNo)}</td>
-        <td>${escapeHtml(citizen.phone || '--')}</td>
-        <td>${escapeHtml(driverName)}</td>
-        <td class="pending">${escapeHtml(status)}</td>
-        <td class="${completed ? 'ok' : 'pending'}">${completed ? 'YES' : 'NO'}</td>
-      </tr>
-    `;
-  }).join('');
+  if (staleBodyEl) {
+    staleBodyEl.innerHTML = staleRows.length
+      ? staleRows.map((item) => {
+        const driver = resolveAssignmentDriverDetails(item);
+        const citizen = resolveAssignmentCitizenDetails(item);
+        const sosNo = item.sosId || item.emergencyId || '--';
+        const status = String(item.status || 'pending').toUpperCase();
+        return `
+          <tr>
+            <td>${escapeHtml(sosNo)}</td>
+            <td>${escapeHtml(citizen.phone || '--')}</td>
+            <td>${escapeHtml(driver.name || driver.vehicle || 'Not assigned')}</td>
+            <td class="pending">${escapeHtml(status)}</td>
+            <td>${escapeHtml(formatSosCreatedAt(item))}</td>
+          </tr>
+        `;
+      }).join('')
+      : `<tr><td colspan="5">${assignmentFeedSource === 'live' ? 'No older unresolved SOS records' : 'Live assignment feed unavailable; cached data may be incomplete.'}</td></tr>`;
+  }
 }
 
 function updateEmergencyTypesDonut() {
@@ -2948,7 +3038,8 @@ async function loadFleetUnitsFromDb() {
     updateFleetSummaryBadge();
 
     fleetUnits = allDrivers
-      .filter((d) => d.location && typeof d.location.lat === 'number' && typeof d.location.lng === 'number')
+      .filter((d) => d.location?.simulated === false &&
+        d.location && typeof d.location.lat === 'number' && typeof d.location.lng === 'number')
       .map((d, idx) => {
         const driverLookupKeys = [d._id, d.id, d.driverId, d.loginId, d.ambulanceId, d.name]
           .filter(Boolean)
@@ -3006,7 +3097,10 @@ function loadAmbulanceMarkers() {
   ambulanceMarkers = [];
 
   if (!fleetUnits.length) {
-    updateMapBadge('NO DRIVER LOCATIONS FOUND');
+    const simulatedCount = allDrivers.filter((driver) => driver.location?.simulated === true).length;
+    updateMapBadge(simulatedCount
+      ? `NO LIVE GPS · ${simulatedCount} SEEDED LOCATIONS EXCLUDED`
+      : 'NO REPORTED DRIVER GPS LOCATIONS');
     return;
   }
 
@@ -3090,7 +3184,7 @@ async function initAdminFleetMap() {
     attachMapControls();
     await applyMapFilter(mapFilterMode);
     fitFleetBounds();
-    updateMapBadge('MAP READY · DB LOCATIONS');
+    updateMapBadge(`MAP READY · ${fleetUnits.length} REPORTED GPS LOCATIONS`);
 
   } catch (error) {
     console.error('Fleet map init failed:', error);

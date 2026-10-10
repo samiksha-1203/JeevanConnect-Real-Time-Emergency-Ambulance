@@ -2130,12 +2130,9 @@ app.get('/api/admin/analytics/today', async (req, res) => {
     ) - indiaOffsetMs;
     const start = new Date(startOfIndiaDay);
     const end = new Date(startOfIndiaDay + 24 * 60 * 60 * 1000);
-    const [emergencies, activeNow] = await Promise.all([
-      Emergency.find({ createdAt: { $gte: start, $lt: end } })
-        .select('status emergencyType createdAt ambulancePickedAt')
-        .lean(),
-      Emergency.countDocuments({ status: { $in: ['pending', 'assigned', 'enroute', 'arrived'] } })
-    ]);
+    const emergencies = await Emergency.find({ createdAt: { $gte: start, $lt: end } })
+      .select('status emergencyType createdAt ambulancePickedAt')
+      .lean();
 
     const statuses = {
       pending: 0,
@@ -2185,7 +2182,7 @@ app.get('/api/admin/analytics/today', async (req, res) => {
       completed: completedCount,
       cancelled: cancelledCount,
       active: activeCount,
-      activeNow,
+      activeNow: activeCount,
       resolutionRate: emergencies.length ? Math.round((completedCount / emergencies.length) * 100) : 0,
       averagePickupMinutes: responseMinutes.length
         ? Number((responseMinutes.reduce((sum, value) => sum + value, 0) / responseMinutes.length).toFixed(1))
