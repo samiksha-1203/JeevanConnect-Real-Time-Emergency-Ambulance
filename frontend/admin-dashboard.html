@@ -114,6 +114,7 @@ button{font-family:inherit}
 .legend-dot.hospital{background:var(--red)}
 .legend-dot.standby{background:var(--amber)}
 .legend-dot.idle{background:#9aa7b4}
+.legend-dot.demo{background:#fff;border:2px dashed var(--muted)}
 .map-overlay .analytics-caption{position:absolute;right:14px;bottom:14px;max-width:290px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.94);font-size:11.5px;pointer-events:none}
 .map-overlay.map-fallback{pointer-events:auto}
 .map-overlay.map-fallback .map-controls,.map-overlay.map-fallback .map-legend{display:none}
@@ -353,7 +354,7 @@ button{font-family:inherit}
         <!-- Map panel -->
         <div class="panel map-panel-full">
           <div class="panel-header">
-            <div class="panel-title">🗺️ Fleet Map · Reported GPS</div>
+            <div class="panel-title">🗺️ Fleet Map · Driver Locations</div>
             <div class="map-header-actions">
               <div class="panel-badge" id="mapFleetSummaryBadge">DB FLEET</div>
               <div class="panel-actions" id="mapFilterActions">
@@ -379,8 +380,9 @@ button{font-family:inherit}
                 <div class="legend-item"><div class="legend-dot hospital"></div>🏥 Hospital</div>
                 <div class="legend-item"><div class="legend-dot standby"></div>Standby</div>
                 <div class="legend-item"><div class="legend-dot idle"></div>Idle</div>
+                <div class="legend-item"><div class="legend-dot demo"></div>Demo location</div>
               </div>
-              <div class="analytics-caption">Only non-simulated GPS locations reported by drivers are plotted. Seeded/demo locations are excluded.</div>
+              <div class="analytics-caption">Drivers with saved coordinates are shown. Seeded/demo locations are marked and are not live GPS.</div>
             </div>
 
           </div>
@@ -759,7 +761,7 @@ function createPinIcon(fill, symbol) {
   };
 }
 
-function createAmbulanceIcon(fill = '#0284c7') {
+function createAmbulanceIcon(fill = '#0284c7', simulated = false) {
   return {
     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
       <svg xmlns="http://www.w3.org/2000/svg" width="68" height="68" viewBox="0 0 68 68">
@@ -768,6 +770,7 @@ function createAmbulanceIcon(fill = '#0284c7') {
             <feDropShadow dx="0" dy="2" stdDeviation="1.8" flood-color="#0f172a" flood-opacity="0.28"/>
           </filter>
         </defs>
+        ${simulated ? '<circle cx="34" cy="34" r="31" fill="none" stroke="#334155" stroke-width="2" stroke-dasharray="4 3"/>' : ''}
         <g filter="url(#shadow)">
           <path d="M8 34c0-8.6 6.9-15.5 15.5-15.5h19.5c7 0 12.7 5.7 12.7 12.7V41c0 2.2-1.8 4-4 4h-2.1c-.7 0-1.3-.6-1.3-1.3 0-4.5-3.6-8.1-8.1-8.1s-8.1 3.6-8.1 8.1c0 .7-.6 1.3-1.3 1.3H28.2c-.7 0-1.3-.6-1.3-1.3 0-4.5-3.6-8.1-8.1-8.1s-8.1 3.6-8.1 8.1c0 .7-.6 1.3-1.3 1.3H8.9c-1.6 0-2.9-1.3-2.9-2.9V34z" fill="${fill}"/>
           <rect x="24" y="22" width="12" height="7" rx="2" fill="#f8fafc" opacity="0.95"/>
@@ -1790,8 +1793,10 @@ async function loadFleetUnitsFromDb() {
     updateFleetSummaryBadge();
 
     fleetUnits = allDrivers
-      .filter((d) => d.location?.simulated === false &&
-        d.location && typeof d.location.lat === 'number' && typeof d.location.lng === 'number')
+      .filter((d) => Number.isFinite(d.location?.lat) &&
+        Number.isFinite(d.location?.lng) &&
+        d.location.lat >= -90 && d.location.lat <= 90 &&
+        d.location.lng >= -180 && d.location.lng <= 180)
       .map((d, idx) => {
         const driverLookupKeys = [d._id, d.id, d.driverId, d.loginId, d.ambulanceId, d.name]
           .filter(Boolean)
@@ -1817,7 +1822,7 @@ async function loadFleetUnitsFromDb() {
           position: { lat: d.location.lat, lng: d.location.lng },
           databasePosition: { lat: d.location.lat, lng: d.location.lng },
           locationSource: 'db',
-          locationSimulated: Boolean(d.location.simulated),
+          locationSimulated: d.location.simulated !== false,
           locationName: locationMeta.place,
           coordinateLabel: `${Number(d.location.lat).toFixed(5)}, ${Number(d.location.lng).toFixed(5)}`,
           color: getFleetStatusColor(normalizedStatus),
@@ -1849,10 +1854,7 @@ function loadAmbulanceMarkers() {
   ambulanceMarkers = [];
 
   if (!fleetUnits.length) {
-    const simulatedCount = allDrivers.filter((driver) => driver.location?.simulated === true).length;
-    updateMapBadge(simulatedCount
-      ? `NO LIVE GPS · ${simulatedCount} SEEDED LOCATIONS EXCLUDED`
-      : 'NO REPORTED DRIVER GPS LOCATIONS');
+    updateMapBadge('NO DRIVER COORDINATES IN DATABASE');
     return;
   }
 
@@ -1865,8 +1867,8 @@ function loadAmbulanceMarkers() {
     const marker = new google.maps.Marker({
       position: unit.position,
       map: adminMap,
-      title: unit.id,
-      icon: createAmbulanceIcon(unit.color),
+      title: `${unit.id}${unit.locationSimulated ? ' · DEMO LOCATION' : ''}`,
+      icon: createAmbulanceIcon(unit.color, unit.locationSimulated),
       animation: null,
       zIndex: 100 + index
     });
@@ -1936,7 +1938,11 @@ async function initAdminFleetMap() {
     attachMapControls();
     await applyMapFilter(mapFilterMode);
     fitFleetBounds();
-    updateMapBadge(`MAP READY · ${fleetUnits.length} REPORTED GPS LOCATIONS`);
+    const liveGpsCount = fleetUnits.filter((unit) => !unit.locationSimulated).length;
+    const demoLocationCount = fleetUnits.length - liveGpsCount;
+    updateMapBadge(demoLocationCount
+      ? `MAP READY · ${liveGpsCount} LIVE GPS · ${demoLocationCount} DEMO LOCATIONS`
+      : `MAP READY · ${liveGpsCount} LIVE GPS LOCATIONS`);
 
   } catch (error) {
     console.error('Fleet map init failed:', error);
