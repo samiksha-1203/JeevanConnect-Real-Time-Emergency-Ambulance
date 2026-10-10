@@ -581,6 +581,147 @@ body::after {
   box-shadow:0 8px 20px rgba(15,23,42,0.08);
 }
 
+.response-chart {
+  display:grid;
+  grid-template-columns:repeat(8, minmax(0, 1fr));
+  align-items:end;
+  gap:12px;
+  min-height:220px;
+  padding:24px 22px 14px;
+}
+
+.response-chart-column {
+  display:flex;
+  height:180px;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  min-width:0;
+  color:var(--muted);
+  font-family:var(--font-mono);
+  font-size:10px;
+}
+
+.response-chart-bar-wrap {
+  display:flex;
+  width:100%;
+  height:142px;
+  align-items:flex-end;
+}
+
+.response-chart-bar {
+  width:100%;
+  min-height:0;
+  border-radius:7px 7px 2px 2px;
+  background:linear-gradient(180deg, #38bdf8, #0284c7);
+  transition:height .25s ease;
+}
+
+.response-chart-column.empty .response-chart-bar {
+  height:3px !important;
+  background:var(--dark3);
+}
+
+.response-chart-time {
+  white-space:nowrap;
+}
+
+.response-chart-empty {
+  grid-column:1 / -1;
+  align-self:center;
+  justify-self:center;
+  padding:30px 12px;
+  color:var(--muted);
+  font-size:14px;
+  text-align:center;
+}
+
+.analytics-caption {
+  color:var(--muted);
+  font-size:12px;
+  padding:0 20px 16px;
+}
+
+.analytics-metrics {
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:14px;
+  padding:20px;
+}
+
+.analytics-metric {
+  padding:18px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:linear-gradient(160deg, #fff, #f8fbfd);
+}
+
+.analytics-metric-label {
+  color:var(--muted);
+  font-size:11px;
+  letter-spacing:.7px;
+  text-transform:uppercase;
+}
+
+.analytics-metric-value {
+  margin-top:8px;
+  color:var(--text);
+  font-family:var(--font-ui);
+  font-size:30px;
+  font-weight:800;
+}
+
+.analytics-feed-status {
+  color:var(--muted);
+  font-size:11px;
+}
+
+.sys-dot.offline {
+  background:var(--red);
+  animation:none;
+}
+
+.map-unavailable {
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-content:center;
+  gap:10px;
+  padding:24px;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(2,132,199,.08), transparent 40%),
+    linear-gradient(135deg, #f8fbfd, #eaf2f8);
+  color:var(--text);
+  text-align:center;
+}
+
+.map-unavailable-title {
+  font-family:var(--font-ui);
+  font-size:20px;
+  font-weight:700;
+}
+
+.map-unavailable-message {
+  max-width:430px;
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.5;
+}
+
+.map-overlay.map-fallback .map-controls,
+.map-overlay.map-fallback .map-legend {
+  display:none;
+}
+
+.nav-item[data-section-target] { cursor:pointer; }
+
+.nav-label { font-size:14px; }
+.kpi-label { font-size:12px; letter-spacing:.6px; }
+.panel-title { font-size:16px; letter-spacing:.4px; }
+.donut-legend-label { font-size:13px; }
+.donut-legend-val { font-size:12px; }
+
 /* ─── AMBULANCE LIST ─── */
 .amb-list {
   display:flex;
@@ -1237,6 +1378,24 @@ body::after {
   .two-col.equal-split { grid-template-columns:1fr; }
   .emergency-pie-shell { width:180px; height:180px; margin:0 auto; }
 }
+
+@media(max-width:700px) {
+  .topbar { padding:12px 16px; }
+  .topbar-title { font-size:16px; }
+  .page-content { padding:16px; gap:16px; }
+  .analytics-metrics { grid-template-columns:repeat(2, minmax(0, 1fr)); padding:14px; }
+  .response-chart { gap:6px; padding:16px 10px 10px; }
+  .response-chart-time { font-size:8px; }
+}
+
+@media(max-width:420px) {
+  .sidebar { width:52px; }
+  .topbar-right { gap:8px; }
+  .time-display { font-size:10px; letter-spacing:0; padding:6px 8px; }
+  .analytics-metrics { grid-template-columns:1fr 1fr; gap:8px; }
+  .analytics-metric { padding:12px; }
+  .analytics-metric-value { font-size:24px; }
+}
 </style>
 </head>
 <body>
@@ -1257,7 +1416,7 @@ body::after {
       </div>
       <div class="sys-status">
         <div class="sys-dot"></div>
-        SYS ONLINE
+        <span id="apiStatusLabel">CHECKING API</span>
       </div>
     </div>
 
@@ -1266,56 +1425,38 @@ body::after {
 
       <div class="nav-item active" data-nav-mode="live-map" onclick="setNav(this)">
         <span class="nav-icon">🗺️</span>
-        <span class="nav-label">Live Map</span>
-        <span class="nav-badge green" id="navBadgeLive">LIVE</span>
+        <span class="nav-label">Fleet Map</span>
+        <span class="nav-badge green" id="navBadgeLive">SYNC</span>
       </div>
 
       <div class="nav-item" data-nav-mode="ambulances" onclick="setNav(this)">
         <span class="nav-icon">🚑</span>
         <span class="nav-label">Ambulances</span>
-        <span class="nav-badge amber" id="navBadgeAmbulances">0</span>
+        <span class="nav-badge amber" id="navBadgeAmbulances">—</span>
       </div>
 
       <div class="nav-item" data-nav-mode="hospitals" onclick="setNav(this)">
         <span class="nav-icon">🏥</span>
         <span class="nav-label">Hospitals</span>
-        <span class="nav-badge green" id="navBadgeHospitals">0</span>
+        <span class="nav-badge green" id="navBadgeHospitals">—</span>
       </div>
 
       <div class="nav-item" data-nav-mode="active-sos" onclick="setNav(this)">
         <span class="nav-icon">🚨</span>
         <span class="nav-label">Active SOS</span>
-        <span class="nav-badge red" id="navBadgeActiveSos">0</span>
+        <span class="nav-badge red" id="navBadgeActiveSos">—</span>
       </div>
 
       <div class="nav-section-label">ANALYTICS</div>
 
-      <div class="nav-item" onclick="setNav(this)">
+      <div class="nav-item" data-section-target="responsePanel" onclick="navigateToSection(this)">
         <span class="nav-icon">📊</span>
         <span class="nav-label">Response Times</span>
       </div>
 
-      <div class="nav-item" onclick="setNav(this)">
-        <span class="nav-icon">📋</span>
-        <span class="nav-label">Event Logs</span>
-        <span class="nav-badge amber">24</span>
-      </div>
-
-      <div class="nav-item" onclick="setNav(this)">
+      <div class="nav-item" data-section-target="analyticsPanel" onclick="navigateToSection(this)">
         <span class="nav-icon">📈</span>
         <span class="nav-label">Analytics</span>
-      </div>
-
-      <div class="nav-section-label">SYSTEM</div>
-
-      <div class="nav-item" onclick="setNav(this)">
-        <span class="nav-icon">⚙️</span>
-        <span class="nav-label">Settings</span>
-      </div>
-
-      <div class="nav-item" onclick="setNav(this)">
-        <span class="nav-icon">👥</span>
-        <span class="nav-label">Users</span>
       </div>
     </nav>
 
@@ -1323,8 +1464,8 @@ body::after {
       <div class="admin-pill">
         <div class="admin-avatar">👤</div>
         <div class="admin-info">
-          <div class="admin-name">Admin</div>
-          <div class="admin-role">CONTROL OPS</div>
+          <div class="admin-name">Operations</div>
+          <div class="admin-role">DASHBOARD</div>
         </div>
       </div>
     </div>
@@ -1340,8 +1481,6 @@ body::after {
       </div>
       <div class="topbar-right">
         <div class="time-display" id="clockDisplay">--:--:--</div>
-        <div class="alert-btn">🔔<div class="alert-dot"></div></div>
-        <div class="alert-btn" onclick="window.location.href='login.html'" title="Logout">🚪</div>
       </div>
     </div>
 
@@ -1353,34 +1492,34 @@ body::after {
         <div class="kpi-card green">
           <div class="kpi-header">
             <div class="kpi-icon">🚑</div>
-            <div class="kpi-trend up" id="amb-trend">+2 ↑</div>
+            <div class="kpi-trend flat">DATABASE</div>
           </div>
           <div class="kpi-value" id="kpi-amb">--</div>
-          <div class="kpi-label">Active Ambulances</div>
+          <div class="kpi-label">Drivers Marked Online</div>
         </div>
 
         <div class="kpi-card red">
           <div class="kpi-header">
             <div class="kpi-icon">🚨</div>
-            <div class="kpi-trend flat" id="sos-trend">● LIVE</div>
+            <div class="kpi-trend flat">DATABASE</div>
           </div>
           <div class="kpi-value" id="kpi-sos">--</div>
-          <div class="kpi-label">Active SOS Calls</div>
+          <div class="kpi-label">Open SOS Records</div>
         </div>
 
         <div class="kpi-card amber">
           <div class="kpi-header">
             <div class="kpi-icon">⏱</div>
-            <div class="kpi-trend down" id="eta-trend">-1.2 ↓</div>
+            <div class="kpi-trend flat">TODAY</div>
           </div>
-          <div class="kpi-value" id="kpi-eta">6.8<span style="font-size:16px;color:var(--muted)">m</span></div>
-          <div class="kpi-label">Avg Response Time</div>
+          <div class="kpi-value" id="kpi-eta">--</div>
+          <div class="kpi-label">Avg SOS-to-Pickup (min)</div>
         </div>
 
         <div class="kpi-card purple">
           <div class="kpi-header">
             <div class="kpi-icon">🏥</div>
-            <div class="kpi-trend up" id="hosp-trend">● DB</div>
+            <div class="kpi-trend flat">DATABASE</div>
           </div>
           <div class="kpi-value" id="kpi-beds">--</div>
           <div class="kpi-label" id="kpi-beds-label">Hospitals (DB)</div>
@@ -1393,7 +1532,7 @@ body::after {
         <!-- Map panel -->
         <div class="panel map-panel-full">
           <div class="panel-header">
-            <div class="panel-title">🗺️ Live Fleet Map</div>
+            <div class="panel-title">🗺️ Fleet Map · Database Locations</div>
             <div class="map-header-actions">
               <div class="panel-badge" id="mapFleetSummaryBadge">DB FLEET</div>
               <div class="panel-actions" id="mapFilterActions">
@@ -1446,10 +1585,25 @@ body::after {
         </div>
       </div>
 
+      <div class="panel" id="hospitalStatusPanel">
+        <div class="panel-header">
+          <div class="panel-title">🏥 Hospital Records</div>
+          <div class="panel-badge" id="hospitalCountBadge">LOADING</div>
+        </div>
+        <div class="amb-list" id="hospitalStatusList">
+          <div class="amb-list-item">
+            <div class="amb-item-info">
+              <div class="amb-item-id">Loading hospital records…</div>
+            </div>
+          </div>
+        </div>
+        <div class="analytics-caption">Hospital records may contain estimated facility details. This dashboard does not provide verified bed availability or live capacity.</div>
+      </div>
+
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title">🚨 Active SOS Tracker</div>
-          <div class="panel-badge" id="activeSosCountBadge">0 ACTIVE</div>
+          <div class="panel-badge" id="activeSosCountBadge">LOADING</div>
         </div>
         <div class="active-sos-table-wrap">
           <table class="active-sos-table">
@@ -1471,79 +1625,19 @@ body::after {
         </div>
       </div>
 
-      <!-- HOSPITALS + RESPONSE CHART + DONUT -->
+      <!-- RESPONSE CHART + EMERGENCY TYPES -->
       <div class="two-col">
 
         <!-- Response Time Chart -->
-        <div class="panel">
+        <div class="panel" id="responsePanel">
           <div class="panel-header">
-            <div class="panel-title">⏱ Response Times</div>
-            <div class="panel-badge">LAST 8 HRS</div>
+            <div class="panel-title">⏱ SOS-to-Pickup by Time of Day</div>
+            <div class="panel-badge">TODAY · INDIA TIME</div>
           </div>
-          <div class="chart-area">
-            <div class="chart-canvas-wrap">
-              <svg class="chart-line-svg" viewBox="0 0 400 120" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.3"/>
-                    <stop offset="100%" stop-color="#00e5ff" stop-opacity="0"/>
-                  </linearGradient>
-                </defs>
-                <!-- Grid lines -->
-                <line x1="0" y1="30"  x2="400" y2="30"  stroke="rgba(0,229,255,0.06)" stroke-width="1"/>
-                <line x1="0" y1="60"  x2="400" y2="60"  stroke="rgba(0,229,255,0.06)" stroke-width="1"/>
-                <line x1="0" y1="90"  x2="400" y2="90"  stroke="rgba(0,229,255,0.06)" stroke-width="1"/>
-                <!-- Area fill -->
-                <path class="chart-path-area" d="M0,80 L55,60 L110,70 L165,45 L220,55 L275,35 L330,50 L400,40 L400,120 L0,120 Z"/>
-                <!-- Line -->
-                <path class="chart-path" d="M0,80 L55,60 L110,70 L165,45 L220,55 L275,35 L330,50 L400,40"/>
-                <!-- Dots -->
-                <circle class="chart-dot" cx="0"   cy="80" r="4"/>
-                <circle class="chart-dot" cx="55"  cy="60" r="4"/>
-                <circle class="chart-dot" cx="110" cy="70" r="4"/>
-                <circle class="chart-dot" cx="165" cy="45" r="4"/>
-                <circle class="chart-dot" cx="220" cy="55" r="4"/>
-                <circle class="chart-dot" cx="275" cy="35" r="4"/>
-                <circle class="chart-dot" cx="330" cy="50" r="4"/>
-                <circle class="chart-dot" cx="400" cy="40" r="4"/>
-              </svg>
-            </div>
-            <div class="chart-labels">
-              <span>00:00</span><span>03:00</span><span>06:00</span>
-              <span>09:00</span><span>12:00</span><span>15:00</span>
-              <span>18:00</span><span>NOW</span>
-            </div>
+          <div class="response-chart" id="responseChart">
+            <div class="response-chart-empty">Loading today’s response data…</div>
           </div>
-          <!-- Stat bars -->
-          <div class="stat-bars">
-            <div class="stat-bar-row">
-              <div class="stat-bar-top">
-                <span class="stat-bar-label">Best Response</span>
-                <span class="stat-bar-val">3.2 min</span>
-              </div>
-              <div class="stat-bar-track">
-                <div class="stat-bar-fill" style="width:32%;background:var(--green);animation-delay:0.2s;"></div>
-              </div>
-            </div>
-            <div class="stat-bar-row">
-              <div class="stat-bar-top">
-                <span class="stat-bar-label">Average Response</span>
-                <span class="stat-bar-val">6.8 min</span>
-              </div>
-              <div class="stat-bar-track">
-                <div class="stat-bar-fill" style="width:68%;background:var(--amber);animation-delay:0.4s;"></div>
-              </div>
-            </div>
-            <div class="stat-bar-row">
-              <div class="stat-bar-top">
-                <span class="stat-bar-label">Worst Response</span>
-                <span class="stat-bar-val">14.1 min</span>
-              </div>
-              <div class="stat-bar-track">
-                <div class="stat-bar-fill" style="width:85%;background:var(--red);animation-delay:0.6s;"></div>
-              </div>
-            </div>
-          </div>
+          <div class="analytics-caption" id="responseSummary">Waiting for today’s records.</div>
         </div>
 
         <!-- Emergency Types Pie -->
@@ -1556,7 +1650,7 @@ body::after {
             <div class="emergency-pie-shell">
               <div class="emergency-pie" id="emergencyTypesPie" aria-label="Emergency type distribution pie"></div>
               <div class="emergency-pie-hole">
-                <div class="donut-center-text" id="donutTotalCount">0</div>
+                <div class="donut-center-text" id="donutTotalCount">—</div>
                 <div class="donut-center-sub">TODAY</div>
               </div>
             </div>
@@ -1565,67 +1659,34 @@ body::after {
         </div>
       </div>
 
-      <!-- LOGS + ANALYTICS -->
+      <!-- DAILY ANALYTICS -->
       <div class="analytics-row">
 
         <!-- Analytics panel -->
-        <div class="panel">
+        <div class="panel" id="analyticsPanel">
           <div class="panel-header">
             <div class="panel-title">📈 Today's Analytics</div>
-            <div class="panel-badge">LIVE</div>
+            <div class="analytics-feed-status" id="analyticsFeedStatus">Waiting for backend data…</div>
           </div>
-          <div style="padding:20px 20px 8px; display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-
-            <div style="background:var(--dark2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">
-              <div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;">TOTAL SOS TODAY</div>
-              <div class="mini-counter red" id="totalSOS">0</div>
+          <div class="analytics-metrics">
+            <div class="analytics-metric">
+              <div class="analytics-metric-label">SOS created today</div>
+              <div class="analytics-metric-value" id="totalSOS">—</div>
             </div>
-
-            <div style="background:var(--dark2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">
-              <div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;">RESOLVED</div>
-              <div class="mini-counter green" id="totalResolved">0</div>
+            <div class="analytics-metric">
+              <div class="analytics-metric-label">Completed today</div>
+              <div class="analytics-metric-value" id="totalResolved">—</div>
             </div>
-
-            <div style="background:var(--dark2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">
-              <div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;">SUCCESS RATE</div>
-              <div class="mini-counter cyan" id="successRateValue">0<span style="font-size:14px;">%</span></div>
+            <div class="analytics-metric">
+              <div class="analytics-metric-label">Cancelled today</div>
+              <div class="analytics-metric-value" id="totalCancelled">—</div>
             </div>
-
-            <div style="background:var(--dark2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">
-              <div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;">AVG DISTANCE</div>
-              <div class="mini-counter amber" id="avgDistanceValue">0.0<span style="font-size:14px;">km</span></div>
+            <div class="analytics-metric">
+              <div class="analytics-metric-label">Avg SOS-to-pickup</div>
+              <div class="analytics-metric-value" id="averagePickupTime">—</div>
             </div>
           </div>
-
-          <div class="stat-bars">
-            <div class="stat-bar-row">
-              <div class="stat-bar-top">
-                <span class="stat-bar-label">Fleet Utilization</span>
-                <span class="stat-bar-val" id="fleetUtilizationValue">0%</span>
-              </div>
-              <div class="stat-bar-track">
-                <div class="stat-bar-fill" id="fleetUtilizationBar" style="width:0%;background:var(--cyan);animation-delay:0.3s;"></div>
-              </div>
-            </div>
-            <div class="stat-bar-row">
-              <div class="stat-bar-top">
-                <span class="stat-bar-label">Hospital Capacity</span>
-                <span class="stat-bar-val" id="hospitalCapacityValue">0%</span>
-              </div>
-              <div class="stat-bar-track">
-                <div class="stat-bar-fill" id="hospitalCapacityBar" style="width:0%;background:var(--green);animation-delay:0.5s;"></div>
-              </div>
-            </div>
-            <div class="stat-bar-row">
-              <div class="stat-bar-top">
-                <span class="stat-bar-label">SOS Resolution Rate</span>
-                <span class="stat-bar-val" id="sosResolutionValue">0%</span>
-              </div>
-              <div class="stat-bar-track">
-                <div class="stat-bar-fill" id="sosResolutionBar" style="width:0%;background:var(--purple);animation-delay:0.7s;"></div>
-              </div>
-            </div>
-          </div>
+          <div class="analytics-caption">Counts use SOS creation date in India Standard Time (Asia/Kolkata). Response time is measured from SOS creation to recorded ambulance pickup.</div>
         </div>
 
       </div>
@@ -1671,39 +1732,26 @@ let latestAssignmentsByDriver = new Map();
 let assignmentCacheSnapshot = [];
 let assignmentFeedSource = 'live';
 let hospitalCountLoaded = 0;
+let hospitalFeedAvailable = false;
 let fleetCountLoaded = 0;
+let fleetFeedAvailable = false;
+let todayAnalytics = null;
 let usingMapFallback = false;
 let mapFilterMode = 'all';
 let sidebarMode = 'live-map';
 let googleMapsAuthFailed = false;
 
-function getDriverMapPosition(driver, index, drivers) {
-  const lat = Number(driver.location?.lat);
-  const lng = Number(driver.location?.lng);
-  const sameLocationIndex = drivers.slice(0, index).filter((candidate) =>
-    Number(candidate.location?.lat) === lat && Number(candidate.location?.lng) === lng
-  ).length;
-  if (!sameLocationIndex) return { lat, lng };
-
-  const angle = sameLocationIndex * (Math.PI / 4);
-  const radius = 0.0012 * Math.ceil((sameLocationIndex + 1) / 8);
-  return {
-    lat: lat + Math.sin(angle) * radius,
-    lng: lng + Math.cos(angle) * radius
-  };
-}
-
 window.gm_authFailure = function gmAuthFailureHandler() {
   googleMapsAuthFailed = true;
   if (adminMap) {
     // If map is already live, do not tear it down on late auth callbacks.
-    updateMapBadge(`MAP AUTH WARNING · LIVE VIEW RETAINED · ${fleetCountLoaded} AMB · ${hospitalCountLoaded} HOSP · FILTER: ${getMapFilterLabel()}`);
+    updateMapBadge(`MAP AUTH WARNING · DATABASE LOCATIONS RETAINED · ${fleetCountLoaded} DRIVERS · ${hospitalCountLoaded} HOSPITALS`);
     return;
   }
   adminMap = null;
   usingMapFallback = true;
   renderMapFallbackOverlay('GOOGLE MAPS AUTH FAILED');
-  updateMapBadge(`MAP AUTH ERROR · FALLBACK ACTIVE · ${fleetCountLoaded} AMB · ${hospitalCountLoaded} HOSP · FILTER: ${getMapFilterLabel()}`);
+  updateMapBadge('MAP AUTH ERROR · MAP UNAVAILABLE');
 };
 
 function rebuildLatestAssignmentsIndex() {
@@ -1748,60 +1796,41 @@ function loadAssignmentCache() {
 function updateFleetSummaryBadge() {
   const badge = document.getElementById('mapFleetSummaryBadge');
   if (!badge) return;
-  badge.textContent = `DB: ${fleetCountLoaded} AMB · ${hospitalCountLoaded} HOSP`;
-}
-
-function getActiveSosCount() {
-  return latestAssignments.filter((item) => {
-    const status = String(item.status || '').toLowerCase();
-    return ['pending', 'assigned', 'enroute', 'arrived', 'hospital_assigned'].includes(status);
-  }).length;
+  badge.textContent = `DRIVERS: ${fleetFeedAvailable ? fleetCountLoaded : '—'} · HOSPITALS: ${hospitalFeedAvailable ? hospitalCountLoaded : '—'}`;
 }
 
 function updateTopKpis() {
-  const activeSosCount = getActiveSosCount();
-
   const ambValueEl = document.getElementById('kpi-amb');
   const sosValueEl = document.getElementById('kpi-sos');
+  const responseValueEl = document.getElementById('kpi-eta');
   const hospValueEl = document.getElementById('kpi-beds');
-  const ambTrendEl = document.getElementById('amb-trend');
-  const sosTrendEl = document.getElementById('sos-trend');
-  const hospTrendEl = document.getElementById('hosp-trend');
   const hospLabelEl = document.getElementById('kpi-beds-label');
 
-  if (ambValueEl) ambValueEl.textContent = String(fleetCountLoaded || 0);
-  if (sosValueEl) sosValueEl.textContent = String(activeSosCount || 0);
-  if (hospValueEl) hospValueEl.textContent = String(hospitalCountLoaded || 0);
-  if (hospLabelEl) hospLabelEl.textContent = 'Hospitals (DB)';
-
-  if (ambTrendEl) {
-    ambTrendEl.textContent = '● LIVE DB';
-    ambTrendEl.className = 'kpi-trend flat';
+  const onlineDrivers = allDrivers.filter((driver) => Boolean(driver.isOnline)).length;
+  if (ambValueEl) ambValueEl.textContent = fleetFeedAvailable ? String(onlineDrivers) : '—';
+  if (sosValueEl) sosValueEl.textContent = todayAnalytics ? String(todayAnalytics.activeNow) : '—';
+  if (responseValueEl) {
+    responseValueEl.textContent = todayAnalytics?.averagePickupMinutes == null
+      ? '—'
+      : String(todayAnalytics.averagePickupMinutes);
   }
-
-  if (sosTrendEl) {
-    sosTrendEl.textContent = activeSosCount > 0 ? '● LIVE' : '● IDLE';
-    sosTrendEl.className = `kpi-trend ${activeSosCount > 0 ? 'flat' : 'up'}`;
-  }
-
-  if (hospTrendEl) {
-    hospTrendEl.textContent = '● DB';
-  }
+  if (hospValueEl) hospValueEl.textContent = hospitalFeedAvailable ? String(hospitalCountLoaded) : '—';
+  if (hospLabelEl) hospLabelEl.textContent = 'Hospital Records';
 }
 
 function updateSidebarBadges() {
-  const activeSosCount = getActiveSosCount();
-
   const ambEl = document.getElementById('navBadgeAmbulances');
   const hospEl = document.getElementById('navBadgeHospitals');
   const sosEl = document.getElementById('navBadgeActiveSos');
-  if (ambEl) ambEl.textContent = String(fleetCountLoaded || 0);
-  if (hospEl) hospEl.textContent = String(hospitalCountLoaded || 0);
-  if (sosEl) sosEl.textContent = String(activeSosCount || 0);
+  const onlineDrivers = allDrivers.filter((driver) => Boolean(driver.isOnline)).length;
+  if (ambEl) ambEl.textContent = fleetFeedAvailable ? String(onlineDrivers) : '—';
+  if (hospEl) hospEl.textContent = hospitalFeedAvailable ? String(hospitalCountLoaded) : '—';
+  if (sosEl) sosEl.textContent = todayAnalytics ? String(todayAnalytics.activeNow) : '—';
   updateTopKpis();
 }
 
 function getCancelableActiveAssignments() {
+  if (assignmentFeedSource !== 'live') return [];
   return latestAssignments.filter((item) => {
     const status = String(item.status || '').toLowerCase();
     const isActive = ['pending', 'assigned', 'enroute', 'arrived', 'hospital_assigned'].includes(status);
@@ -1834,24 +1863,33 @@ function applySidebarMode() {
   }
 }
 
-function renderHospitalStatusList(hospitals = []) {
+function renderHospitalStatusList(hospitals = [], error = null) {
   const listEl = document.getElementById('hospitalStatusList');
   const badgeEl = document.getElementById('hospitalCountBadge');
   if (badgeEl) {
-    badgeEl.textContent = `${hospitals.length} HOSPITALS FROM DB`;
+    badgeEl.textContent = error ? 'UNAVAILABLE' : `${hospitals.length} RECORDS`;
   }
 
   if (!listEl) return;
+  if (error) {
+    listEl.innerHTML = `
+      <div class="hosp-row">
+        <div class="hosp-row-icon">🏥</div>
+        <div class="hosp-row-info">
+          <div class="hosp-row-name">Hospital records unavailable</div>
+          <div class="amb-item-status">${escapeHtml(error.message || 'Could not load hospital records.')}</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
   if (!hospitals.length) {
     listEl.innerHTML = `
       <div class="hosp-row">
         <div class="hosp-row-icon">🏥</div>
         <div class="hosp-row-info">
           <div class="hosp-row-name">No hospital records found</div>
-          <div class="hosp-row-bars">
-            <div class="bed-bar"><div class="bed-bar-fill red" style="width:0%;"></div></div>
-            <span class="hosp-row-beds red">DB empty</span>
-          </div>
+          <div class="amb-item-status">The backend returned no hospital records.</div>
         </div>
       </div>
     `;
@@ -1859,23 +1897,15 @@ function renderHospitalStatusList(hospitals = []) {
   }
 
   listEl.innerHTML = hospitals.slice(0, 8).map((hospital) => {
-    const totalBeds = Number(hospital.facilities?.totalBeds || 0);
-    const icuBeds = Number(hospital.facilities?.icuBeds || 0);
-    const bedRatio = totalBeds > 0 ? Math.min(100, Math.round((icuBeds / totalBeds) * 100)) : 0;
     const address = hospital.location?.address || [hospital.location?.city, hospital.location?.state].filter(Boolean).join(', ') || 'Mumbai';
     const type = hospital.type || 'Hospital';
     const phone = hospital.phoneNumber || 'N/A';
-    const iconClass = bedRatio >= 70 ? 'red' : bedRatio >= 35 ? 'amber' : 'green';
 
     return `
       <div class="hosp-row">
         <div class="hosp-row-icon">🏥</div>
         <div class="hosp-row-info">
           <div class="hosp-row-name">${escapeHtml(hospital.name || 'Hospital')}</div>
-          <div class="hosp-row-bars">
-            <div class="bed-bar"><div class="bed-bar-fill ${iconClass}" style="width:${bedRatio}%;"></div></div>
-            <span class="hosp-row-beds ${iconClass}">${escapeHtml(String(icuBeds))} ICU · ${escapeHtml(String(totalBeds || 'N/A'))} Beds</span>
-          </div>
           <div class="amb-item-status" style="margin-top:6px;">${escapeHtml(type)} · ${escapeHtml(address)} · ${escapeHtml(phone)}</div>
         </div>
       </div>
@@ -1999,15 +2029,13 @@ function createHospitalIcon() {
 }
 
 async function fetchAllHospitalsForMap() {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/hospitals/all`);
-    const data = await response.json();
-    const hospitals = Array.isArray(data?.hospitals) ? data.hospitals : [];
-    return hospitals;
-  } catch (error) {
-    console.error('Failed to fetch hospitals for map:', error);
-    return [];
+  const response = await fetch(`${API_BASE_URL}/api/hospitals/all`, { cache: 'no-store' });
+  const data = await response.json();
+  if (!response.ok || data?.success !== true) {
+    throw new Error(data?.message || `Hospital request failed (${response.status})`);
   }
+  const hospitals = Array.isArray(data.hospitals) ? data.hospitals : [];
+  return hospitals.filter((hospital) => hospital.source !== 'hardcoded-fallback');
 }
 
 function updateMapBadge(text) {
@@ -2029,75 +2057,19 @@ function getMapFilterLabel() {
   return 'ALL';
 }
 
-function renderMapFallbackOverlay(reason = 'LIVE MAP FALLBACK ACTIVE') {
+function renderMapFallbackOverlay(reason = 'MAP PROVIDER UNAVAILABLE') {
   const mapEl = document.getElementById('fleetMap');
   if (!mapEl) return;
 
   usingMapFallback = true;
   mapEl.innerHTML = '';
-  mapEl.style.position = 'relative';
-  mapEl.style.background = 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 40%, #f8fafc 100%)';
-  mapEl.style.border = '1px solid rgba(2,132,199,0.2)';
-
-  const fallbackCanvas = document.createElement('div');
-  fallbackCanvas.style.position = 'absolute';
-  fallbackCanvas.style.inset = '0';
-  fallbackCanvas.style.overflow = 'hidden';
-
-  const note = document.createElement('div');
-  note.style.position = 'absolute';
-  note.style.top = '10px';
-  note.style.left = '10px';
-  note.style.padding = '6px 10px';
-  note.style.borderRadius = '999px';
-  note.style.background = 'rgba(15,23,42,0.75)';
-  note.style.color = '#f8fafc';
-  note.style.fontSize = '11px';
-  note.style.fontWeight = '700';
-  note.textContent = `${reason} · FILTER: ${getMapFilterLabel()}`;
-  fallbackCanvas.appendChild(note);
-
-  const hospitalDots = Array.isArray(window.__adminHospitalsForFallback) ? window.__adminHospitalsForFallback : [];
-  const units = Array.isArray(fleetUnits) ? fleetUnits : [];
-  const visibleHospitalDots = shouldShowHospitals() ? hospitalDots : [];
-  const visibleUnits = shouldShowDrivers() ? units : [];
-
-  visibleHospitalDots.forEach((_, idx) => {
-    const dot = document.createElement('div');
-    dot.style.position = 'absolute';
-    dot.style.width = '12px';
-    dot.style.height = '12px';
-    dot.style.borderRadius = '50%';
-    dot.style.background = '#dc2626';
-    dot.style.boxShadow = '0 0 0 4px rgba(220,38,38,0.18)';
-    dot.style.left = `${12 + ((idx * 17) % 76)}%`;
-    dot.style.top = `${18 + ((idx * 23) % 64)}%`;
-    fallbackCanvas.appendChild(dot);
-  });
-
-  visibleUnits.forEach((unit, idx) => {
-    const marker = document.createElement('div');
-    marker.style.position = 'absolute';
-    marker.style.left = `${10 + ((idx * 13) % 80)}%`;
-    marker.style.top = `${15 + ((idx * 19) % 70)}%`;
-    marker.style.transform = 'translate(-50%, -50%)';
-    marker.style.padding = '3px 7px';
-    marker.style.borderRadius = '999px';
-    marker.style.fontSize = '10px';
-    marker.style.fontWeight = '700';
-    marker.style.color = '#0f172a';
-    marker.style.background = unit.status === 'busy' || unit.status === 'active'
-      ? 'rgba(244,63,94,0.25)'
-      : unit.status === 'available'
-        ? 'rgba(245,158,11,0.26)'
-        : 'rgba(148,163,184,0.35)';
-    marker.style.border = '1px solid rgba(15,23,42,0.12)';
-    marker.textContent = unit.id;
-    marker.title = `${unit.id} · ${unit.driver} · ${unit.status}`;
-    fallbackCanvas.appendChild(marker);
-  });
-
-  mapEl.appendChild(fallbackCanvas);
+  mapEl.parentElement?.querySelector('.map-overlay')?.classList.add('map-fallback');
+  mapEl.innerHTML = `
+    <div class="map-unavailable">
+      <div class="map-unavailable-title">Map unavailable</div>
+      <div class="map-unavailable-message">${escapeHtml(reason)}. No markers are shown without a working map, so locations are not guessed.</div>
+    </div>
+  `;
 }
 
 function buildInfoHtml(title, bodyLines, accent) {
@@ -2161,8 +2133,21 @@ function attachMapFilterControls() {
 }
 
 async function loadHospitalMarkers() {
-  const hospitals = await fetchAllHospitalsForMap();
-  window.__adminHospitalsForFallback = hospitals;
+  let hospitals;
+  try {
+    hospitals = await fetchAllHospitalsForMap();
+    hospitalFeedAvailable = true;
+  } catch (error) {
+    console.error('Failed to fetch hospitals for map:', error);
+    hospitalFeedAvailable = false;
+    hospitalCountLoaded = 0;
+    allHospitals = [];
+    renderHospitalStatusList([], error);
+    updateFleetSummaryBadge();
+    updateSidebarBadges();
+    if (usingMapFallback) renderMapFallbackOverlay('HOSPITAL RECORDS UNAVAILABLE');
+    return;
+  }
   allHospitals = hospitals;
   renderHospitalStatusList(hospitals);
 
@@ -2171,6 +2156,7 @@ async function loadHospitalMarkers() {
 
   hospitalCountLoaded = hospitals.length;
   updateFleetSummaryBadge();
+  updateSidebarBadges();
 
   if (!hospitals.length) {
     updateMapBadge('NO HOSPITAL DATA FOUND');
@@ -2208,7 +2194,6 @@ async function loadHospitalMarkers() {
         `${hospitalNo} · ${hospital.name}`,
         [
           `${hospital.type || 'Hospital'} · ${(hospital.specialties || []).join(' · ') || 'General Care'}`,
-          `ICU beds: ${hospital.facilities?.icuBeds ?? 'N/A'}`,
           `Address: ${hospital.location.address || 'N/A'}`,
           `Phone: ${hospital.phoneNumber || 'N/A'}`
         ],
@@ -2578,7 +2563,7 @@ function renderSelectedAssignmentCard() {
     ` : ''}
     <div class="selection-row" style="justify-content:flex-end; gap:8px; margin-top:8px;">
       <button class="admin-action-btn" id="showActiveSosBtn">Show Active SOS</button>
-      <button class="admin-action-btn danger" id="cancelAllActiveSosBtn">Cancel All Active SOS</button>
+      ${assignmentFeedSource === 'live' ? '<button class="admin-action-btn danger" id="cancelAllActiveSosBtn">Cancel All Active SOS</button>' : ''}
     </div>
   `;
 
@@ -2587,8 +2572,11 @@ function renderSelectedAssignmentCard() {
 
 async function loadAmbulanceAssignments() {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/admin/ambulance-assignments?limit=100`);
+    const response = await fetch(`${API_BASE_URL}/api/admin/ambulance-assignments?limit=100`, { cache: 'no-store' });
     const data = await response.json();
+    if (!response.ok || data?.success !== true) {
+      throw new Error(data?.message || `Assignment request failed (${response.status})`);
+    }
     latestAssignments = Array.isArray(data?.assignments) ? data.assignments : [];
     assignmentFeedSource = 'live';
     rebuildLatestAssignmentsIndex();
@@ -2677,7 +2665,9 @@ function renderAssignmentList() {
     const basisDetails = formatAssignmentBasis(item);
     const iconClass = visual.indicator === 'active' ? 'active' : visual.indicator === 'standby' ? 'standby' : 'idle';
     const status = String(item.status || '').toLowerCase();
-    const canCancel = ['pending', 'assigned', 'enroute', 'arrived', 'hospital_assigned'].includes(status) && item.emergencyId;
+    const canCancel = assignmentFeedSource === 'live' &&
+      ['pending', 'assigned', 'enroute', 'arrived', 'hospital_assigned'].includes(status) &&
+      item.emergencyId;
 
     return `
       <div class="amb-list-item" data-emergency-id="${escapeHtml(item.emergencyId || '')}">
@@ -2731,7 +2721,7 @@ function renderAssignmentList() {
       `;
     });
 
-  if (badgeEl) badgeEl.textContent = `${allDrivers.length} DB DRIVERS`;
+  if (badgeEl) badgeEl.textContent = `${allDrivers.length} DRIVER RECORDS`;
   updateSidebarBadges();
   renderActiveSosTable();
   updateEmergencyTypesDonut();
@@ -2765,13 +2755,13 @@ function renderActiveSosTable() {
   });
 
   if (badgeEl) {
-    badgeEl.textContent = `${activeRows.length} ACTIVE`;
+    badgeEl.textContent = `${assignmentFeedSource === 'live' ? '' : 'CACHED · '}${activeRows.length} ACTIVE`;
   }
 
   if (!activeRows.length) {
     bodyEl.innerHTML = `
       <tr>
-        <td colspan="5">No active SOS at the moment</td>
+        <td colspan="5">${assignmentFeedSource === 'live' ? 'No open SOS records right now' : 'Live assignment feed unavailable; cached data may be incomplete.'}</td>
       </tr>
     `;
     return;
@@ -2798,101 +2788,39 @@ function renderActiveSosTable() {
 }
 
 function updateEmergencyTypesDonut() {
-  const catalog = [
-    { key: 'cardiac', label: '🫀 Cardiac Arrest / Heart Attack', color: '#e11d48' },
-    { key: 'breathing', label: '🫁 Breathing Problem', color: '#0ea5e9' },
-    { key: 'bleeding', label: '🩸 Severe Bleeding', color: '#dc2626' },
-    { key: 'poisoning', label: '🤢 Poisoning / Overdose', color: '#7c3aed' },
-    { key: 'fever', label: '🌡️ High Fever / Infection', color: '#f59e0b' },
-    { key: 'seizure', label: '⚡ Seizure / Epilepsy', color: '#16a34a' },
-    { key: 'burn', label: '🩹 Burn Injury', color: '#f97316' },
-    { key: 'trauma', label: '🚧 Trauma & Injury', color: '#d97706' },
-    { key: 'fracture', label: '🦴 Fracture / Broken Bone', color: '#0891b2' },
-    { key: 'road_major', label: '🏍️ Road Accident (Major)', color: '#be123c' },
-    { key: 'road_minor', label: '🚗 Road Accident (Minor)', color: '#2563eb' },
-    { key: 'fall', label: '🧍 Fall / Head Injury', color: '#0284c7' },
-    { key: 'pregnancy', label: '🤰 Pregnancy Emergency / Labor', color: '#db2777' },
-    { key: 'child', label: '👶 Child Emergency', color: '#14b8a6' },
-    { key: 'critical', label: '🧑‍🦽 Critical Condition', color: '#334155' },
-    { key: 'unconscious', label: '😵 Unconscious / Not Responding', color: '#7f1d1d' },
-    { key: 'chest_pain', label: '💢 Chest Pain (Non-confirmed)', color: '#a855f7' },
-    { key: 'fire', label: '🔥 Fire Injury', color: '#ea580c' },
-    { key: 'unknown', label: '⚠️ Unknown Emergency', color: '#64748b' }
-  ];
-
-  const counts = new Map(catalog.map((entry) => [entry.key, 0]));
-
-  const toCanonicalTypeKey = (rawType) => {
-    const type = String(rawType || '').toLowerCase();
-    if (!type) return 'unknown';
-
-    if (type.includes('cardiac') || type.includes('heart attack') || type.includes('heart') || type.includes('arrest')) return 'cardiac';
-    if (type.includes('breath') || type.includes('respirat') || type.includes('asthma')) return 'breathing';
-    if (type.includes('bleeding') || type.includes('hemorr') || type.includes('haemorr') || type.includes('blood loss')) return 'bleeding';
-    if (type.includes('poison') || type.includes('overdose') || type.includes('toxic')) return 'poisoning';
-    if (type.includes('fever') || type.includes('infection') || type.includes('sepsis')) return 'fever';
-    if (type.includes('seizure') || type.includes('epilep') || type.includes('convulsion')) return 'seizure';
-    if (type.includes('burn') || type.includes('scald')) return 'burn';
-    if (type.includes('trauma') || type.includes('injury')) return 'trauma';
-    if (type.includes('fracture') || type.includes('broken bone') || type.includes('bone')) return 'fracture';
-    if (type.includes('road accident') && type.includes('major')) return 'road_major';
-    if (type.includes('road accident') && type.includes('minor')) return 'road_minor';
-    if (type.includes('accident') && (type.includes('major') || type.includes('high impact'))) return 'road_major';
-    if (type.includes('accident') && (type.includes('minor') || type.includes('low impact'))) return 'road_minor';
-    if (type.includes('fall') || type.includes('head injury')) return 'fall';
-    if (type.includes('pregnan') || type.includes('labor') || type.includes('delivery') || type.includes('ob') || type.includes('gyn') || type.includes('childbirth')) return 'pregnancy';
-    if (type.includes('child') || type.includes('pediatric') || type.includes('paediatric') || type.includes('infant')) return 'child';
-    if (type.includes('unconscious') || type.includes('not responding') || type.includes('not responsive')) return 'unconscious';
-    if (type.includes('chest pain')) return 'chest_pain';
-    if (type.includes('fire') || type.includes('smoke')) return 'fire';
-    if (type.includes('stroke') || type.includes('neuro') || type.includes('brain')) return 'seizure';
-    if (type.includes('accident') || type.includes('crash')) return 'road_minor';
-
-    return 'unknown';
-  };
-
-  latestAssignments.forEach((item) => {
-    const key = toCanonicalTypeKey(item.emergencyType);
-    counts.set(key, (counts.get(key) || 0) + 1);
-  });
-
-  const total = latestAssignments.length;
-  const safeTotal = total > 0 ? total : 1;
-
+  const types = todayAnalytics?.emergencyTypes || [];
+  const total = todayAnalytics?.total || 0;
+  const colors = ['#0284c7', '#16a34a', '#d97706', '#e11d48', '#7c3aed', '#0891b2', '#f97316'];
   const pieEl = document.getElementById('emergencyTypesPie');
   const legendEl = document.getElementById('emergencyTypesLegend');
 
-  const series = catalog.map((entry) => {
-    const count = counts.get(entry.key) || 0;
-    const pct = Math.round((count / safeTotal) * 100);
-    return { ...entry, count, pct };
-  });
-
   if (pieEl) {
-    if (!total) {
+    if (!todayAnalytics || !total) {
       pieEl.style.background = 'conic-gradient(from -90deg, rgba(15,23,42,0.08) 0deg 360deg)';
     } else {
       let angle = -90;
-      const slices = [];
-      series.forEach((row) => {
-        if (row.count <= 0) return;
+      const slices = types.map((row, index) => {
         const span = (row.count / total) * 360;
         const nextAngle = angle + span;
-        slices.push(`${row.color} ${angle}deg ${nextAngle}deg`);
+        const slice = `${colors[index % colors.length]} ${angle}deg ${nextAngle}deg`;
         angle = nextAngle;
+        return slice;
       });
       pieEl.style.background = `conic-gradient(${slices.join(', ')})`;
     }
   }
 
   if (legendEl) {
-    const rankedLegend = [...series].sort((a, b) => b.count - a.count);
-    legendEl.innerHTML = rankedLegend.map((row) => {
+    legendEl.innerHTML = !todayAnalytics
+      ? '<div class="response-chart-empty">Today’s records are unavailable.</div>'
+      : !types.length
+        ? '<div class="response-chart-empty">No SOS calls recorded today.</div>'
+        : types.map((row, index) => {
       const percentage = total > 0 ? Math.round((row.count / total) * 100) : 0;
       return `
         <div class="donut-legend-item">
-          <div class="donut-legend-color" style="background:${row.color};"></div>
-          <span class="donut-legend-label">${escapeHtml(row.label)}</span>
+          <div class="donut-legend-color" style="background:${colors[index % colors.length]};"></div>
+          <span class="donut-legend-label">${escapeHtml(row.type)}</span>
           <span class="donut-legend-val">${row.count} (${percentage}%)</span>
         </div>
       `;
@@ -2900,72 +2828,121 @@ function updateEmergencyTypesDonut() {
   }
 
   const totalEl = document.getElementById('donutTotalCount');
-  if (totalEl) totalEl.textContent = String(total);
+  if (totalEl) totalEl.textContent = todayAnalytics ? String(total) : '—';
 }
 
 function updateTodaysAnalyticsFromDb() {
-  const total = latestAssignments.length;
-  const resolved = latestAssignments.filter((item) => {
-    const status = String(item.status || '').toLowerCase();
-    return ['completed', 'resolved', 'closed'].includes(status);
-  }).length;
-
-  const successRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
-  const activeSos = getActiveSosCount();
-  const fleetUtilization = fleetCountLoaded > 0
-    ? Math.min(100, Math.round((activeSos / fleetCountLoaded) * 100))
-    : 0;
-
-  const distances = latestAssignments
-    .map((item) => Number(item?.assignmentBasis?.selectedDistanceKm || item?.assignmentBasis?.distanceKm || item?.distanceKm))
-    .filter((v) => Number.isFinite(v) && v > 0);
-  const avgDistance = distances.length
-    ? (distances.reduce((sum, v) => sum + v, 0) / distances.length)
-    : 0;
-
-  const capacityRatios = allHospitals
-    .map((h) => {
-      const totalBeds = Number(h?.facilities?.totalBeds || 0);
-      const icuBeds = Number(h?.facilities?.icuBeds || 0);
-      if (totalBeds <= 0) return null;
-      return (icuBeds / totalBeds) * 100;
-    })
-    .filter((v) => Number.isFinite(v));
-  const hospitalCapacity = capacityRatios.length
-    ? Math.max(0, Math.min(100, Math.round(capacityRatios.reduce((sum, v) => sum + v, 0) / capacityRatios.length)))
-    : 0;
-
   const totalEl = document.getElementById('totalSOS');
   const resolvedEl = document.getElementById('totalResolved');
-  const successEl = document.getElementById('successRateValue');
-  const avgDistanceEl = document.getElementById('avgDistanceValue');
-  const fleetUtilizationValueEl = document.getElementById('fleetUtilizationValue');
-  const hospitalCapacityValueEl = document.getElementById('hospitalCapacityValue');
-  const sosResolutionValueEl = document.getElementById('sosResolutionValue');
-  const fleetUtilizationBarEl = document.getElementById('fleetUtilizationBar');
-  const hospitalCapacityBarEl = document.getElementById('hospitalCapacityBar');
-  const sosResolutionBarEl = document.getElementById('sosResolutionBar');
+  const cancelledEl = document.getElementById('totalCancelled');
+  const averagePickupEl = document.getElementById('averagePickupTime');
+  const feedStatusEl = document.getElementById('analyticsFeedStatus');
+  const total = todayAnalytics?.total;
 
-  if (totalEl) totalEl.textContent = String(total);
-  if (resolvedEl) resolvedEl.textContent = String(resolved);
-  if (successEl) successEl.innerHTML = `${successRate}<span style="font-size:14px;">%</span>`;
-  if (avgDistanceEl) avgDistanceEl.innerHTML = `${avgDistance.toFixed(1)}<span style="font-size:14px;">km</span>`;
+  if (totalEl) totalEl.textContent = todayAnalytics ? String(total) : '—';
+  if (resolvedEl) resolvedEl.textContent = todayAnalytics ? String(todayAnalytics.completed) : '—';
+  if (cancelledEl) cancelledEl.textContent = todayAnalytics ? String(todayAnalytics.cancelled) : '—';
+  if (averagePickupEl) {
+    averagePickupEl.textContent = todayAnalytics?.averagePickupMinutes == null
+      ? '—'
+      : `${todayAnalytics.averagePickupMinutes} min`;
+  }
 
-  if (fleetUtilizationValueEl) fleetUtilizationValueEl.textContent = `${fleetUtilization}%`;
-  if (hospitalCapacityValueEl) hospitalCapacityValueEl.textContent = `${hospitalCapacity}%`;
-  if (sosResolutionValueEl) sosResolutionValueEl.textContent = `${successRate}%`;
+  if (feedStatusEl) {
+    if (!todayAnalytics) {
+      feedStatusEl.textContent = 'Backend data unavailable';
+    } else {
+      const updatedAt = new Intl.DateTimeFormat('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(new Date(todayAnalytics.generatedAt));
+      feedStatusEl.textContent = `India time · updated ${updatedAt}`;
+    }
+  }
 
-  if (fleetUtilizationBarEl) fleetUtilizationBarEl.style.width = `${fleetUtilization}%`;
-  if (hospitalCapacityBarEl) hospitalCapacityBarEl.style.width = `${hospitalCapacity}%`;
-  if (sosResolutionBarEl) sosResolutionBarEl.style.width = `${successRate}%`;
+  renderResponseTimeChart();
+}
+
+function renderResponseTimeChart() {
+  const chartEl = document.getElementById('responseChart');
+  const summaryEl = document.getElementById('responseSummary');
+  if (!chartEl || !summaryEl) return;
+
+  const buckets = todayAnalytics?.responseBuckets || [];
+  const populatedBuckets = buckets.filter((bucket) => bucket.count > 0 && bucket.averageMinutes != null);
+  if (!todayAnalytics) {
+    chartEl.innerHTML = '<div class="response-chart-empty">Could not load today’s response data.</div>';
+    summaryEl.textContent = 'Check the backend connection and try again.';
+    return;
+  }
+  if (!populatedBuckets.length) {
+    chartEl.innerHTML = '<div class="response-chart-empty">No ambulance pickups recorded today.</div>';
+    summaryEl.textContent = 'Response-time metrics will appear after a pickup is recorded.';
+    return;
+  }
+
+  const maxMinutes = Math.max(...populatedBuckets.map((bucket) => bucket.averageMinutes), 1);
+  chartEl.innerHTML = buckets.map((bucket) => {
+    const hasValue = bucket.count > 0 && bucket.averageMinutes != null;
+    const barHeight = hasValue ? Math.max(8, (bucket.averageMinutes / maxMinutes) * 100) : 0;
+    const title = hasValue
+      ? `${bucket.count} pickup${bucket.count === 1 ? '' : 's'} · average ${bucket.averageMinutes} min`
+      : 'No recorded pickups';
+    return `
+      <div class="response-chart-column ${hasValue ? '' : 'empty'}" title="${escapeHtml(title)}">
+        <span>${hasValue ? `${bucket.averageMinutes}m` : ''}</span>
+        <div class="response-chart-bar-wrap">
+          <div class="response-chart-bar" style="height:${barHeight}%;"></div>
+        </div>
+        <span class="response-chart-time">${escapeHtml(bucket.label)}</span>
+      </div>
+    `;
+  }).join('');
+  summaryEl.textContent = `Best ${todayAnalytics.bestPickupMinutes} min · Average ${todayAnalytics.averagePickupMinutes} min · Longest ${todayAnalytics.worstPickupMinutes} min · SOS created to ambulance pickup`;
+}
+
+async function loadTodayAnalytics() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/admin/analytics/today`, { cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok || data?.success !== true) {
+      throw new Error(data?.message || `Analytics request failed (${response.status})`);
+    }
+
+    todayAnalytics = data;
+    const apiStatusLabel = document.getElementById('apiStatusLabel');
+    const navBadgeLive = document.getElementById('navBadgeLive');
+    const sysDot = document.querySelector('.sys-dot');
+    if (apiStatusLabel) apiStatusLabel.textContent = 'API CONNECTED';
+    if (navBadgeLive) navBadgeLive.textContent = 'API';
+    if (sysDot) sysDot.classList.remove('offline');
+  } catch (error) {
+    console.error('Failed to load today’s analytics:', error);
+    todayAnalytics = null;
+    const apiStatusLabel = document.getElementById('apiStatusLabel');
+    const navBadgeLive = document.getElementById('navBadgeLive');
+    const sysDot = document.querySelector('.sys-dot');
+    if (apiStatusLabel) apiStatusLabel.textContent = 'API UNAVAILABLE';
+    if (navBadgeLive) navBadgeLive.textContent = 'OFFLINE';
+    if (sysDot) sysDot.classList.add('offline');
+  }
+
+  updateEmergencyTypesDonut();
+  updateTodaysAnalyticsFromDb();
+  updateSidebarBadges();
 }
 
 async function loadFleetUnitsFromDb() {
   try {
     const response = await fetch(`${API_BASE_URL}/api/drivers`);
     const data = await response.json();
+    if (!response.ok || data?.success !== true) {
+      throw new Error(data?.message || `Driver request failed (${response.status})`);
+    }
     const drivers = Array.isArray(data?.drivers) ? data.drivers : [];
     allDrivers = drivers;
+    fleetFeedAvailable = true;
 
     fleetCountLoaded = allDrivers.length;
     updateFleetSummaryBadge();
@@ -2979,7 +2956,11 @@ async function loadFleetUnitsFromDb() {
         const assignment = driverLookupKeys.map((k) => latestAssignmentsByDriver.get(k)).find(Boolean) || null;
         const assignmentStatus = String(assignment?.status || '').toLowerCase();
         const isActivelyAssigned = ['assigned', 'enroute', 'arrived', 'hospital_assigned'].includes(assignmentStatus);
-        const normalizedStatus = isActivelyAssigned ? 'busy' : 'available';
+        const normalizedStatus = isActivelyAssigned
+          ? 'busy'
+          : d.isOnline && String(d.status || '').toLowerCase() === 'available'
+            ? 'available'
+            : 'offline';
 
         const locationMeta = formatDriverLocationText(d);
 
@@ -2990,13 +2971,13 @@ async function loadFleetUnitsFromDb() {
           emergency: assignment
             ? `${assignment.emergencyType || 'Emergency'} · ${String(assignment.status || '').toUpperCase()}`
             : 'Standby',
-          position: getDriverMapPosition(d, idx, allDrivers),
+          position: { lat: d.location.lat, lng: d.location.lng },
           databasePosition: { lat: d.location.lat, lng: d.location.lng },
           locationSource: 'db',
+          locationSimulated: Boolean(d.location.simulated),
           locationName: locationMeta.place,
           coordinateLabel: `${Number(d.location.lat).toFixed(5)}, ${Number(d.location.lng).toFixed(5)}`,
           color: getFleetStatusColor(normalizedStatus),
-          phase: (idx % 7) * 0.8
         };
       });
 
@@ -3005,6 +2986,7 @@ async function loadFleetUnitsFromDb() {
   } catch (error) {
     console.error('Failed to load DB fleet units:', error);
     allDrivers = [];
+    fleetFeedAvailable = false;
     fleetCountLoaded = 0;
     fleetUnits = [];
     updateFleetSummaryBadge();
@@ -3015,7 +2997,7 @@ async function loadFleetUnitsFromDb() {
 
 function loadAmbulanceMarkers() {
   if (usingMapFallback || !adminMap || !(window.google && window.google.maps)) {
-    updateMapBadge(`MAP UNAVAILABLE · FALLBACK ACTIVE · ${fleetCountLoaded} AMB · ${hospitalCountLoaded} HOSP · FILTER: ${getMapFilterLabel()}`);
+    updateMapBadge('MAP UNAVAILABLE · DATABASE LISTS STILL AVAILABLE');
     renderMapFallbackOverlay('MAP UNAVAILABLE');
     return;
   }
@@ -3052,7 +3034,7 @@ function loadAmbulanceMarkers() {
           `Ambulance: ${unit.id}`,
           `Location: ${unit.locationName || 'Unknown'}`,
           `Coordinates: ${unit.coordinateLabel || '--'}`,
-          `Location source: ${unit.locationSource === 'db' ? 'DB GPS' : 'Fallback (missing DB GPS)'}`
+          `Location source: ${unit.locationSimulated ? 'Simulated demo location' : 'Reported GPS'}`
         ],
         unit.color
       ));
@@ -3061,12 +3043,6 @@ function loadAmbulanceMarkers() {
 
     ambulanceMarkers.push(marker);
   });
-}
-
-function animateFleetMarkers() {
-  updateMapBadge(
-    `UPDATED ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · ${fleetCountLoaded} AMB · ${hospitalCountLoaded} HOSP`
-  );
 }
 
 async function initAdminFleetMap() {
@@ -3088,6 +3064,7 @@ async function initAdminFleetMap() {
     mapEl.innerHTML = '';
     mapEl.style.background = '';
     mapEl.style.border = '';
+    mapEl.parentElement?.querySelector('.map-overlay')?.classList.remove('map-fallback');
 
     adminInfoWindow = new google.maps.InfoWindow();
     adminMap = new google.maps.Map(mapEl, {
@@ -3113,9 +3090,8 @@ async function initAdminFleetMap() {
     attachMapControls();
     await applyMapFilter(mapFilterMode);
     fitFleetBounds();
-    updateMapBadge('LIVE MAP READY');
+    updateMapBadge('MAP READY · DB LOCATIONS');
 
-    setInterval(animateFleetMarkers, 4000);
   } catch (error) {
     console.error('Fleet map init failed:', error);
     adminMap = null;
@@ -3125,7 +3101,7 @@ async function initAdminFleetMap() {
     await loadHospitalMarkers();
     renderAssignmentList();
     renderMapFallbackOverlay('MAP UNAVAILABLE');
-    updateMapBadge(`MAP UNAVAILABLE · FALLBACK ACTIVE · ${fleetCountLoaded} AMB · ${hospitalCountLoaded} HOSP · FILTER: ${getMapFilterLabel()}`);
+    updateMapBadge('MAP UNAVAILABLE · DATABASE LISTS STILL AVAILABLE');
     if (!googleMapsAuthFailed) {
       scheduleMapInitRetry(2500);
     }
@@ -3133,7 +3109,7 @@ async function initAdminFleetMap() {
 }
 
 async function refreshFleetVisuals() {
-  await loadAmbulanceAssignments();
+  await Promise.all([loadTodayAnalytics(), loadAmbulanceAssignments()]);
   await loadFleetUnitsFromDb();
   if (adminMap) {
     loadAmbulanceMarkers();
@@ -3159,6 +3135,12 @@ function setNav(el) {
   el.classList.add('active');
   sidebarMode = el?.dataset?.navMode || 'live-map';
   applySidebarMode();
+}
+
+function navigateToSection(el) {
+  document.querySelectorAll('.nav-item').forEach((item) => item.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(el.dataset.sectionTarget)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function cancelEmergencyFromAdmin(emergencyId) {
@@ -3269,18 +3251,6 @@ attachMapFilterControls();
 refreshFleetVisuals();
 setInterval(refreshFleetVisuals, 8000);
 initAdminFleetMap();
-
-// ─── ETA countdown ───
-let etas = { eta1:6, eta2:4, eta3:9 };
-setInterval(() => {
-  Object.keys(etas).forEach(k => {
-    if (etas[k] > 1) {
-      etas[k] -= 0.01;
-      const el = document.getElementById(k);
-      if (el) el.textContent = Math.ceil(etas[k]) + ' min';
-    }
-  });
-}, 1000);
 
 </script>
 </body>

@@ -2118,6 +2118,97 @@ app.get('/api/admin/ambulance-assignments', async (req, res) => {
   }
 });
 
+app.get('/api/admin/analytics/today', async (req, res) => {
+  try {
+    const now = new Date();
+    const indiaOffsetMs = 330 * 60 * 1000;
+    const indiaNow = new Date(now.getTime() + indiaOffsetMs);
+    const startOfIndiaDay = Date.UTC(
+      indiaNow.getUTCFullYear(),
+      indiaNow.getUTCMonth(),
+      indiaNow.getUTCDate()
+    ) - indiaOffsetMs;
+    const start = new Date(startOfIndiaDay);
+    const end = new Date(startOfIndiaDay + 24 * 60 * 60 * 1000);
+    const [emergencies, activeNow] = await Promise.all([
+      Emergency.find({ createdAt: { $gte: start, $lt: end } })
+        .select('status emergencyType createdAt ambulancePickedAt')
+        .lean(),
+      Emergency.countDocuments({ status: { $in: ['pending', 'assigned', 'enroute', 'arrived'] } })
+    ]);
+
+    const statuses = {
+      pending: 0,
+      assigned: 0,
+      enroute: 0,
+      arrived: 0,
+      completed: 0,
+      cancelled: 0
+    };
+    const types = new Map();
+    const responseBuckets = Array.from({ length: 8 }, (_, index) => ({
+      label: `${String(index * 3).padStart(2, '0')}:00`,
+      totalMinutes: 0,
+      count: 0
+    }));
+    const responseMinutes = [];
+
+    for (const emergency of emergencies) {
+      const status = String(emergency.status || 'pending').toLowerCase();
+      if (Object.prototype.hasOwnProperty.call(statuses, status)) statuses[status] += 1;
+
+      const type = String(emergency.emergencyType || 'Unknown').trim() || 'Unknown';
+      types.set(type, (types.get(type) || 0) + 1);
+
+      if (emergency.ambulancePickedAt && emergency.createdAt) {
+        const minutes = (new Date(emergency.ambulancePickedAt).getTime() - new Date(emergency.createdAt).getTime()) / 60000;
+        if (Number.isFinite(minutes) && minutes >= 0) {
+          responseMinutes.push(minutes);
+          const indiaHour = new Date(new Date(emergency.createdAt).getTime() + indiaOffsetMs).getUTCHours();
+          const bucket = responseBuckets[Math.floor(indiaHour / 3)];
+          bucket.totalMinutes += minutes;
+          bucket.count += 1;
+        }
+      }
+    }
+
+    const completedCount = statuses.completed;
+    const cancelledCount = statuses.cancelled;
+    const activeCount = statuses.pending + statuses.assigned + statuses.enroute + statuses.arrived;
+
+    return res.json({
+      success: true,
+      timezone: 'Asia/Kolkata',
+      date: start.toISOString(),
+      generatedAt: now.toISOString(),
+      total: emergencies.length,
+      completed: completedCount,
+      cancelled: cancelledCount,
+      active: activeCount,
+      activeNow,
+      resolutionRate: emergencies.length ? Math.round((completedCount / emergencies.length) * 100) : 0,
+      averagePickupMinutes: responseMinutes.length
+        ? Number((responseMinutes.reduce((sum, value) => sum + value, 0) / responseMinutes.length).toFixed(1))
+        : null,
+      bestPickupMinutes: responseMinutes.length ? Number(Math.min(...responseMinutes).toFixed(1)) : null,
+      worstPickupMinutes: responseMinutes.length ? Number(Math.max(...responseMinutes).toFixed(1)) : null,
+      statuses,
+      emergencyTypes: Array.from(types, ([type, count]) => ({ type, count }))
+        .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type)),
+      responseBuckets: responseBuckets.map((bucket) => ({
+        label: bucket.label,
+        count: bucket.count,
+        averageMinutes: bucket.count
+          ? Number((bucket.totalMinutes / bucket.count).toFixed(1))
+          : null
+      }))
+    });
+  } catch (error) {
+    console.error("Get today's admin analytics error:", error.message || error);
+    return res.status(500).json({ success: false, message: 'Failed to load today’s analytics' });
+  }
+});
+
 app.post('/api/admin/migrations/force-drivers-available-with-location', async (req, res) => {
   try {
     const adminKeyHeader = req.headers['x-admin-key'];

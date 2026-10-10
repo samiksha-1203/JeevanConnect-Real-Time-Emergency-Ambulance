@@ -79,7 +79,7 @@ Hospital matching, discovery, and stored facility data remain part of the backen
 
 ### Administrator
 
-The admin dashboard presents hospital and fleet maps, driver lists, SOS/assignment information, and analytics-style panels. Some dashboard values are static or illustrative. The backend also exposes driver seeding and database migration utilities. This is not a separate, fully authenticated admin application; protect the service and its operational endpoints before any non-demo use.
+The admin dashboard presents hospital and fleet maps, driver lists, SOS/assignment information, and daily analytics. Daily SOS totals use records created on the current India Standard Time day; response-time metrics use recorded SOS-to-pickup durations and remain blank when there are no pickup records. No SOS records for the day are shown as zero, not sample activity. Map fallback does not plot guessed marker locations. The backend also exposes driver seeding and database migration utilities, so database records and locations may still be demo data. This is not a separate, fully authenticated admin application; protect the service and its operational endpoints before any non-demo use.
 
 ## Data model
 
@@ -220,6 +220,7 @@ Routes are implemented in `backend/server.js`. Unless noted, requests/responses 
 | `PUT` | `/api/hospital/me/facilities` | Update authenticated hospital facilities (hospital JWT) |
 | `POST` | `/api/admin/seed/mumbai-drivers` | Seed sample Mumbai drivers |
 | `GET` | `/api/admin/ambulance-assignments` | List assignment/dashboard data |
+| `GET` | `/api/admin/analytics/today` | Today's SOS counts and recorded pickup-time metrics (Asia/Kolkata) |
 | `POST` | `/api/admin/migrations/force-drivers-available-with-location` | Migration/repair utility |
 | `POST` | `/api/admin/migrations/cluster-drivers-nearby` | Migration/demo driver clustering |
 | `POST` | `/api/admin/migrations/randomize-drivers-mumbai` | Migration/demo location utility |
@@ -383,7 +384,7 @@ For a manual end-to-end demo, start MongoDB and the backend, serve the frontend,
 - The nearest-driver calculation is straight-line distance. ETA and route graphics are estimates or map-provider output, not emergency-grade routing.
 - Driver location snapping and seeded locations are demo conveniences; they do not validate real GPS.
 - Hospital ownership may be inferred; specialty coverage may be generic; bed counts, ratings, hours, services, and imported data may be estimated, stale, or incomplete. There is no authoritative real-time capacity feed.
-- Hospital dashboard analytics/resource panels include illustrative values.
+- Admin daily analytics are based on persisted SOS records, but driver seeds and locations can be simulated demo data.
 - Demo OTP is enabled by default in code, and the OTP is stored in process memory. Disable the fallback in production and use a real provider.
 - The code has a fallback JWT secret, stores driver passwords without the same hashing used for hospital passwords, and exposes operational endpoints that need authorization. Set strong secrets and implement proper role-based authorization and password hashing before production.
 - The optional admin/migration key is not a substitute for authenticated admin authorization; if unset, its checks are bypassed. Hospital credential/bootstrap endpoints also require production access controls.
