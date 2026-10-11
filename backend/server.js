@@ -3996,7 +3996,7 @@ app.get('/api/hospitals/nearby', async (req, res) => {
 // Search hospitals by name or area
 app.get('/api/hospitals/search', async (req, res) => {
   try {
-    const { query, lat, lng } = req.query;
+    const { query, lat, lng, googleOnly } = req.query;
 
     if (!query) {
       return res.status(400).json({ success: false, message: 'Search query required' });
@@ -4006,6 +4006,13 @@ app.get('/api/hospitals/search', async (req, res) => {
     const userLng = lng ? parseFloat(lng) : 72.8777;
 
     let filtered = await fetchGoogleSearchHospitals(query, userLat, userLng);
+    if (googleOnly === 'true') {
+      return res.json({
+        success: true,
+        hospitals: filtered,
+        source: 'google-places'
+      });
+    }
     let source = 'google-places';
 
     if (!filtered.length) {

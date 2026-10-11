@@ -812,12 +812,11 @@
                 <option value="manual">Select any hospital</option>
             </select>
             <div id="manualHospitalTools" style="display:none;gap:8px;grid-template-columns:1fr auto;">
-                <input id="manualHospitalSearch" type="search" placeholder="Search nearby hospitals..." oninput="searchManualHospitals(this.value)" style="min-width:0;padding:10px 12px;border:1px solid rgba(148,163,184,0.5);border-radius:10px;background:white;">
-                <button type="button" onclick="loadAllHospitalsForManualSelection(true)" style="padding:10px 12px;border:1px solid #0284c7;border-radius:10px;background:#e0f2fe;color:#075985;font-weight:700;white-space:nowrap;">Search all</button>
+                <input id="manualHospitalSearch" type="search" placeholder="Search hospitals or area..." oninput="searchManualHospitals(this.value)" style="min-width:0;padding:10px 12px;border:1px solid rgba(148,163,184,0.5);border-radius:10px;background:white;">
+                <button id="manualHospitalSearchButton" type="button" onclick="searchManualHospitals()" style="padding:10px 12px;border:1px solid #0284c7;border-radius:10px;background:#e0f2fe;color:#075985;font-weight:700;white-space:nowrap;">Search all</button>
             </div>
-            <select id="manualHospitalSelect" style="display:none;width:100%;padding:10px 12px;border:1px solid rgba(148,163,184,0.5);border-radius:10px;background:white;">
-                <option value="">Select a nearby hospital</option>
-            </select>
+            <div id="manualHospitalSelection" style="display:none;padding:10px 12px;border:1px solid #0284c7;border-radius:10px;background:#f0f9ff;color:#075985;font-size:13px;"></div>
+            <div id="manualHospitalResults" role="listbox" aria-label="Google hospital search results" style="display:none;max-height:240px;overflow:auto;"></div>
         </div>
         <div class="address-wrap" style="margin-top:14px;display:grid;gap:10px;">
             <div style="font-size:11px;color:#64748b;letter-spacing:2px;text-transform:uppercase;font-weight:700;">Patient address</div>
@@ -1475,6 +1474,10 @@
     let driverPollInterval = null;
     let dispatchStatusPollInterval = null;
     const sosSessionKey = 'jeevanconnect_active_sos';
+    let selectedManualHospital = null;
+    let manualHospitalResultsData = [];
+    let manualHospitalSearchTimer = null;
+    let manualHospitalSearchRequestId = 0;
 
     function persistActiveSOSSession() {
         if (!activeSOS) return;
@@ -1751,10 +1754,7 @@
         const unknownDetails = unknownDetailsEl ? unknownDetailsEl.value.trim() : '';
         const hospitalMode = document.getElementById('hospitalAssignmentMode')?.value || 'nearest';
         const hospitalSpecialty = hospitalMode === 'specialty' ? getHospitalSpecialtyFromEmergencyType(emergencyType) : 'auto';
-        const selectedHospitalIndex = document.getElementById('manualHospitalSelect')?.value || '';
-        const selectedHospital = hospitalMode === 'manual' && selectedHospitalIndex !== ''
-            ? allHospitals.find((hospital) => `${hospital.name}|${hospital.location.lat}|${hospital.location.lng}` === selectedHospitalIndex) || null
-            : null;
+        const selectedHospital = hospitalMode === 'manual' ? selectedManualHospital : null;
         const emergencyContactAlerts = Object.values(emergencyContacts || {}).map((contact) => ({
             name: contact.name,
             phone: contact.phone,
@@ -1773,6 +1773,11 @@
         if (isUnknownEmergency && !unknownDetails) {
             showToast('⚠️ Please add a short description for unknown emergency.');
             if (unknownDetailsEl) unknownDetailsEl.focus();
+            return;
+        }
+        if (hospitalMode === 'manual' && !selectedHospital) {
+            showToast('🏥 Search for and select a hospital first.');
+            document.getElementById('manualHospitalSearch')?.focus();
             return;
         }
 
@@ -1985,60 +1990,156 @@
         return 'auto';
     }
 
-    function updateManualHospitalSelector() {
-        const selector = document.getElementById('manualHospitalSelect');
-        if (!selector) return;
-        const search = document.getElementById('manualHospitalSearch')?.value || '';
-        const searchLower = search.trim().toLowerCase();
-        const options = allHospitals.filter((hospital) => {
-            if (!searchLower) return true;
-            return hospital.name.toLowerCase().includes(searchLower)
-                || hospital.type.toLowerCase().includes(searchLower)
-                || hospital.location.address.toLowerCase().includes(searchLower);
-        });
-        selector.innerHTML = `<option value="">${options.length ? 'Select a hospital' : 'No hospitals found'}</option>`;
-        options.forEach((hospital) => {
-            const option = document.createElement('option');
-            option.value = `${hospital.name}|${hospital.location.lat}|${hospital.location.lng}`;
-            option.textContent = `${hospital.name} - ${hospital.type}`;
-            selector.appendChild(option);
-        });
-    }
+    function renderManualHospitalResults(hospitals, message = '') {
+        const resultsEl = document.getElementById('manualHospitalResults');
+        if (!resultsEl) return;
+        manualHospitalResultsData = hospitals;
+        resultsEl.replaceChildren();
+        resultsEl.style.display = 'block';
 
-    function searchManualHospitals() {
-        updateManualHospitalSelector();
-    }
-
-    async function loadAllHospitalsForManualSelection(loadAll = false) {
-        const tools = document.getElementById('manualHospitalTools');
-        const selector = document.getElementById('manualHospitalSelect');
-        if (tools) tools.style.display = 'grid';
-        if (!loadAll) {
-            updateManualHospitalSelector();
+        if (message) {
+            const status = document.createElement('div');
+            status.textContent = message;
+            status.style.cssText = 'padding:12px;color:#64748b;font-size:13px;';
+            resultsEl.appendChild(status);
             return;
         }
 
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/hospitals/all`);
-            const data = await response.json();
-            if (response.ok && data.success && Array.isArray(data.hospitals) && data.hospitals.length) {
-                allHospitals = data.hospitals.map(normalizeHospitalRecord);
-            }
-        } catch (_) {
-            // Keep nearby/fallback hospitals if the complete directory is unavailable.
+        hospitals.forEach((hospital, index) => {
+            const card = document.createElement('button');
+            card.type = 'button';
+            card.dataset.hospitalResultIndex = String(index);
+            card.setAttribute('role', 'option');
+            card.setAttribute('aria-selected', String(selectedManualHospital?.placeId === hospital.placeId
+                || (selectedManualHospital?.name === hospital.name
+                    && selectedManualHospital?.location?.lat === hospital.location?.lat
+                    && selectedManualHospital?.location?.lng === hospital.location?.lng)));
+            card.style.cssText = 'display:block;width:100%;text-align:left;padding:11px 12px;border:1px solid #dbe3ef;border-radius:10px;background:white;color:#0f172a;margin-top:7px;cursor:pointer;';
+
+            const name = document.createElement('strong');
+            name.textContent = hospital.name || 'Hospital';
+            name.style.cssText = 'display:block;font-size:14px;';
+            const address = document.createElement('span');
+            address.textContent = hospital.location?.address || 'Address unavailable';
+            address.style.cssText = 'display:block;margin-top:4px;color:#64748b;font-size:12px;';
+            const meta = document.createElement('span');
+            const distance = Number(hospital.distance);
+            meta.textContent = `${hospital.type || 'Hospital'}${Number.isFinite(distance) ? ` · ${distance.toFixed(1)} km away` : ''}`;
+            meta.style.cssText = 'display:block;margin-top:4px;color:#0369a1;font-size:12px;font-weight:600;';
+
+            card.append(name, address, meta);
+            resultsEl.appendChild(card);
+        });
+
+        if (!hospitals.length) {
+            const status = document.createElement('div');
+            status.textContent = 'No Google hospital results found. Try another hospital name or nearby area.';
+            status.style.cssText = 'padding:12px;color:#64748b;font-size:13px;';
+            resultsEl.appendChild(status);
         }
-        updateManualHospitalSelector();
+    }
+
+    async function runManualHospitalSearch(query) {
+        const searchButton = document.getElementById('manualHospitalSearchButton');
+        const requestId = ++manualHospitalSearchRequestId;
+        const params = new URLSearchParams({
+            query,
+            googleOnly: 'true'
+        });
+        if (Number.isFinite(Number(currentUserLocation?.lat)) && Number.isFinite(Number(currentUserLocation?.lng))) {
+            params.set('lat', String(currentUserLocation.lat));
+            params.set('lng', String(currentUserLocation.lng));
+        }
+
+        if (searchButton) {
+            searchButton.disabled = true;
+            searchButton.textContent = 'Searching...';
+        }
+        renderManualHospitalResults([], 'Searching Google Maps hospitals...');
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/hospitals/search?${params.toString()}`, { cache: 'no-store' });
+            const data = await response.json();
+            if (!response.ok || data?.success !== true) {
+                throw new Error(data?.message || `Hospital search failed (${response.status})`);
+            }
+            if (requestId !== manualHospitalSearchRequestId) return;
+            renderManualHospitalResults(Array.isArray(data.hospitals) ? data.hospitals : []);
+        } catch (error) {
+            if (requestId !== manualHospitalSearchRequestId) return;
+            console.error('Google hospital search failed:', error);
+            renderManualHospitalResults([], 'Hospital search is unavailable right now. Please try again.');
+        } finally {
+            if (requestId === manualHospitalSearchRequestId && searchButton) {
+                searchButton.disabled = false;
+                searchButton.textContent = 'Search all';
+            }
+        }
+    }
+
+    function searchManualHospitals(value) {
+        if (manualHospitalSearchTimer) clearTimeout(manualHospitalSearchTimer);
+        const searchButton = document.getElementById('manualHospitalSearchButton');
+        if (searchButton) {
+            searchButton.disabled = false;
+            searchButton.textContent = 'Search all';
+        }
+        selectedManualHospital = null;
+        const selectionEl = document.getElementById('manualHospitalSelection');
+        if (selectionEl) {
+            selectionEl.style.display = 'none';
+            selectionEl.textContent = '';
+        }
+
+        const query = String(value ?? document.getElementById('manualHospitalSearch')?.value ?? '').trim();
+        if (value !== undefined && query.length < 2) {
+            manualHospitalSearchRequestId += 1;
+            renderManualHospitalResults([], query ? 'Enter at least 2 characters to search.' : 'Type a hospital name or area, or choose Search all.');
+            return;
+        }
+        manualHospitalSearchTimer = setTimeout(() => {
+            runManualHospitalSearch(query || 'hospital');
+        }, value === undefined ? 0 : 350);
     }
 
     function updateHospitalAssignmentControls() {
         const modeSelect = document.getElementById('hospitalAssignmentMode');
-        const manualSelect = document.getElementById('manualHospitalSelect');
         const manualTools = document.getElementById('manualHospitalTools');
-        if (!modeSelect || !manualSelect) return;
-        manualSelect.style.display = modeSelect.value === 'manual' ? 'block' : 'none';
+        if (!modeSelect) return;
         if (manualTools) manualTools.style.display = modeSelect.value === 'manual' ? 'grid' : 'none';
-        if (modeSelect.value === 'manual') loadAllHospitalsForManualSelection(false);
+        if (modeSelect.value !== 'manual') {
+            if (manualHospitalSearchTimer) clearTimeout(manualHospitalSearchTimer);
+            manualHospitalSearchRequestId += 1;
+            selectedManualHospital = null;
+            const resultsEl = document.getElementById('manualHospitalResults');
+            const selectionEl = document.getElementById('manualHospitalSelection');
+            if (resultsEl) {
+                resultsEl.style.display = 'none';
+                resultsEl.replaceChildren();
+            }
+            if (selectionEl) {
+                selectionEl.style.display = 'none';
+                selectionEl.textContent = '';
+            }
+        } else {
+            document.getElementById('manualHospitalSearch')?.focus();
+        }
     }
+
+    document.getElementById('manualHospitalResults')?.addEventListener('click', (event) => {
+        const card = event.target.closest('[data-hospital-result-index]');
+        if (!card) return;
+        const index = Number(card.dataset.hospitalResultIndex);
+        const selected = manualHospitalResultsData[index];
+        if (!selected) return;
+        selectedManualHospital = selected;
+        const selectionEl = document.getElementById('manualHospitalSelection');
+        if (selectionEl) {
+            selectionEl.textContent = `Selected hospital: ${selected.name || 'Hospital'} · ${selected.location?.address || 'Address unavailable'}`;
+            selectionEl.style.display = 'block';
+        }
+        renderManualHospitalResults(hospitals);
+    });
 
     document.addEventListener('click', (event) => {
         const toggleButton = event.target.closest('[data-hospital-mode]');
@@ -2064,6 +2165,7 @@
     let liveMapEngine = 'google';
     let directionsService = null;
     let directionsRenderer = null;
+    let citizenRouteRequestId = 0;
     let liveFallbackPolyline = null;
     let liveAlternateRoutePolylines = [];
     let routePoints = [];
@@ -2188,6 +2290,9 @@
     function renderCitizenSimpleRouteFallback(origin, destination) {
         if (!liveMap || !origin || !destination || !window.google || !google.maps) return;
 
+        if (directionsRenderer) {
+            directionsRenderer.setMap(null);
+        }
         if (liveFallbackPolyline) {
             liveFallbackPolyline.setMap(null);
             liveFallbackPolyline = null;
@@ -2208,14 +2313,76 @@
         });
 
         routePoints = [origin, destination];
+        const distanceKm = Math.hypot(
+            (destination.lat - origin.lat) * 111,
+            (destination.lng - origin.lng) * 111 * Math.cos(origin.lat * Math.PI / 180)
+        );
+        const zoom = distanceKm < 0.2 ? 16 : distanceKm < 1 ? 15 : distanceKm < 3 ? 14 : distanceKm < 8 ? 13 : 12;
+        liveMap.setCenter({
+            lat: (origin.lat + destination.lat) / 2,
+            lng: (origin.lng + destination.lng) / 2
+        });
+        liveMap.setZoom(zoom);
+    }
 
-        const bounds = new google.maps.LatLngBounds();
-        bounds.extend(originLatLng);
-        bounds.extend(destinationLatLng);
-        liveMap.fitBounds(bounds, 80);
+    async function renderCitizenRoadRoute(origin, destination) {
+        if (!liveMap || !origin || !destination || !window.google || !google.maps) return;
+        const requestId = ++citizenRouteRequestId;
+
+        try {
+            directionsService = directionsService || new google.maps.DirectionsService();
+            const result = await new Promise((resolve, reject) => {
+                directionsService.route({
+                    origin: new google.maps.LatLng(origin.lat, origin.lng),
+                    destination: new google.maps.LatLng(destination.lat, destination.lng),
+                    travelMode: google.maps.TravelMode.DRIVING,
+                    provideRouteAlternatives: false
+                }, (response, status) => {
+                    if (status === google.maps.DirectionsStatus.OK && response) {
+                        resolve(response);
+                    } else {
+                        reject(new Error(`Driving route unavailable (${status})`));
+                    }
+                });
+            });
+
+            if (requestId !== citizenRouteRequestId) return;
+            if (liveFallbackPolyline) {
+                liveFallbackPolyline.setMap(null);
+                liveFallbackPolyline = null;
+            }
+            if (!directionsRenderer) {
+                directionsRenderer = new google.maps.DirectionsRenderer({
+                    map: liveMap,
+                    suppressMarkers: true,
+                    preserveViewport: false,
+                    polylineOptions: {
+                        strokeColor: '#1a73e8',
+                        strokeOpacity: 0.9,
+                        strokeWeight: 7,
+                        clickable: false,
+                        zIndex: 9
+                    }
+                });
+            } else {
+                directionsRenderer.setMap(liveMap);
+            }
+            directionsRenderer.setDirections(result);
+            const path = result.routes?.[0]?.overview_path || [];
+            routePoints = path.map((point) => ({ lat: point.lat(), lng: point.lng() }));
+            google.maps.event.addListenerOnce(liveMap, 'idle', () => {
+                if (liveMap && liveMap.getZoom() > 16) liveMap.setZoom(16);
+            });
+        } catch (error) {
+            if (requestId !== citizenRouteRequestId) return;
+            console.warn('Driving directions unavailable; showing a direct-line fallback:', error.message);
+            renderCitizenSimpleRouteFallback(origin, destination);
+            applyCitizenRouteStyle('#1a73e8');
+        }
     }
 
     function clearCitizenRouteOverlays() {
+        citizenRouteRequestId += 1;
         if (liveFallbackPolyline) {
             liveFallbackPolyline.setMap(null);
             liveFallbackPolyline = null;
@@ -2367,8 +2534,7 @@
             return;
         }
 
-        renderCitizenSimpleRouteFallback(ambulanceStart, userPos);
-        applyCitizenRouteStyle('#1a73e8');
+        await renderCitizenRoadRoute(ambulanceStart, userPos);
 
         syncCitizenRouteEndpointLabels();
 
@@ -2493,8 +2659,7 @@
             if (!liveMap) return;
         }
 
-        renderCitizenSimpleRouteFallback(origin, destination);
-        applyCitizenRouteStyle('#1a73e8');
+        await renderCitizenRoadRoute(origin, destination);
         syncCitizenRouteEndpointLabels();
     }
 
@@ -3068,8 +3233,7 @@
                 </div>
             `;
             hospList.appendChild(card);
-        });
-        updateManualHospitalSelector();
+            });
     }
 
     // Search hospitals
