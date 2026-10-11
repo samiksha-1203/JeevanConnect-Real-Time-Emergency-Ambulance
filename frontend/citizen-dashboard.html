@@ -1529,11 +1529,14 @@
         }
     }
 
-    async function fetchDispatchStatusFromBackend() {
-        const emergencyId = activeSOS?.emergencyId || activeSOS?.sosId;
+    async function fetchDispatchStatusFromBackend(emergency = activeSOS) {
+        const emergencyId = emergency?.emergencyId || emergency?.sosId;
         if (!emergencyId) return null;
         try {
             const response = await fetch(`${API_BASE_URL}/api/emergency/${encodeURIComponent(emergencyId)}/dispatch-status`);
+            if (response.status === 400 || response.status === 404) {
+                return { notFound: true };
+            }
             const data = await response.json();
             if (!response.ok || !data.success) return null;
             return data;
@@ -1545,7 +1548,7 @@
     function applyDispatchStatusToTracking(statusData) {
         if (!activeSOS || !statusData) return;
 
-        if (statusData.status === 'cancelled') {
+        if (['cancelled', 'completed'].includes(String(statusData.status || '').toLowerCase())) {
             clearSOSAsyncTimers();
             clearInterval(etaInterval);
             activeSOS = null;
@@ -1554,7 +1557,9 @@
             document.getElementById('trackingCard').style.display='none';
             document.getElementById('sosHint').textContent='Tap to dispatch emergency services';
             closeModal();
-            showToast('❌ Emergency request cancelled');
+            if (String(statusData.status).toLowerCase() === 'cancelled') {
+                showToast('❌ Emergency request cancelled');
+            }
             return;
         }
 
@@ -2583,27 +2588,40 @@
             stored = JSON.parse(localStorage.getItem(sosSessionKey) || 'null');
         } catch (_) {
             stored = null;
+            clearActiveSOSSession();
         }
 
-        if (!stored || !stored.activeSOS) return;
+        if (!stored || !stored.activeSOS) {
+            if (stored) clearActiveSOSSession();
+            return;
+        }
+        if (!stored.activeSOS.emergencyId && !stored.activeSOS.sosId) {
+            clearActiveSOSSession();
+            return;
+        }
+
+        const statusData = await fetchDispatchStatusFromBackend(stored.activeSOS);
+        if (!statusData) return;
+        if (statusData.notFound ||
+            ['completed', 'cancelled'].includes(String(statusData.status || '').toLowerCase())) {
+            clearActiveSOSSession();
+            document.getElementById('trackingCard').style.display='none';
+            document.getElementById('sosHint').textContent='Tap to dispatch emergency services';
+            return;
+        }
+
+        const activeStatuses = ['pending', 'assigned', 'enroute', 'arrived', 'hospital_assigned'];
+        if (!activeStatuses.includes(String(statusData.status || '').toLowerCase())) {
+            clearActiveSOSSession();
+            return;
+        }
 
         activeSOS = stored.activeSOS;
         sosState = stored.sosState || 'pending';
         renderSOSModal();
+        applyDispatchStatusToTracking(statusData);
+        if (!activeSOS) return;
         startDispatchStatusPolling();
-
-        const statusData = await fetchDispatchStatusFromBackend();
-        if (statusData) {
-            applyDispatchStatusToTracking(statusData);
-            if (statusData.status === 'completed' || statusData.status === 'cancelled') {
-                activeSOS = null;
-                sosState = 'idle';
-                clearActiveSOSSession();
-                document.getElementById('trackingCard').style.display='none';
-                document.getElementById('sosHint').textContent='Tap to dispatch emergency services';
-                return;
-            }
-        }
 
         if (sosState === 'enroute') {
             revealTrackingCard();
