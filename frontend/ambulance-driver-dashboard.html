@@ -991,18 +991,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     return currentTokens.length > 0 && candidateTokens.some((token) => currentTokens.includes(token));
   }
 
-  function getAcceptedDispatchMarker() {
-    try {
-      const raw = localStorage.getItem(acceptedDispatchKey);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (!parsed || !parsed.sosId || !parsed.acceptedAt) return null;
-      return parsed;
-    } catch (_) {
-      return null;
-    }
-  }
-
   function clearAcceptedDispatchMarker() {
     try {
       localStorage.removeItem(acceptedDispatchKey);
@@ -1046,7 +1034,35 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     return Date.now() < recentlyCompletedUntil;
   }
 
+  function isCreatedTodayInIndia(value) {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return false;
+    const getIndiaDateKey = (input) => {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).formatToParts(input);
+      const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+      return `${values.year}-${values.month}-${values.day}`;
+    };
+    return getIndiaDateKey(date) === getIndiaDateKey(new Date());
+  }
+
+  function getMissionStatusRank(status) {
+    const value = String(status || '').toLowerCase();
+    if (['hospital_assigned', 'patient_picked', 'to_hospital', 'in_transit', 'arrived'].includes(value)) return 2;
+    if (['enroute', 'accepted'].includes(value)) return 1;
+    if (['assigned', 'pending'].includes(value)) return 0;
+    return -1;
+  }
+
+  let dispatchRestoreInProgress = false;
+
   async function restoreLiveDispatchFromBackend() {
+    if (dispatchRestoreInProgress || missionActionInProgress) return null;
+    dispatchRestoreInProgress = true;
     try {
       const completedMarker = getRecentlyCompletedMarker();
       if (completedMarker && completedMarker.sosId) {
@@ -1061,6 +1077,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         if (!assignment) return false;
         const status = String(assignment.status || '').toLowerCase();
         if (['completed', 'cancelled'].includes(status)) return false;
+        if (assignment.source !== 'live-dispatch' && !isCreatedTodayInIndia(assignment.createdAt)) return false;
         return matchesCurrentDriverIdentity(assignment.driver || {});
       });
 
@@ -1107,14 +1124,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         initiatedBy: liveAssignment.initiatedBy || null
       };
 
-      const acceptedMarker = getAcceptedDispatchMarker();
-      const markerMatches = acceptedMarker
-        && String(acceptedMarker.sosId) === String(currentDispatch.sosId)
-        && (Date.now() - Number(acceptedMarker.acceptedAt || 0)) < (6 * 60 * 60 * 1000);
       const assignmentStatus = String(liveAssignment.status || '').toLowerCase();
+      const previousStatus = sameMissionAsBefore ? String(previousDispatch.status || '').toLowerCase() : '';
+      const resolvedAssignmentStatus = sameMissionAsBefore
+        && getMissionStatusRank(previousStatus) > getMissionStatusRank(assignmentStatus)
+        ? previousStatus
+        : assignmentStatus;
       const backendHospitalPhase = ['hospital_assigned', 'patient_picked', 'to_hospital', 'in_transit', 'arrived'].includes(assignmentStatus);
-      missionAccepted = isAcceptedDispatchStatus(assignmentStatus)
-        || Boolean(markerMatches)
+      missionAccepted = isAcceptedDispatchStatus(resolvedAssignmentStatus)
         || Boolean(sameMissionAsBefore && previousAccepted);
       if (backendHospitalPhase) {
         hospitalRouteLocked = true;
@@ -1122,7 +1139,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         hospitalRouteLocked = false;
       }
       if (missionAccepted) {
-        currentDispatch.status = isAcceptedDispatchStatus(assignmentStatus) ? assignmentStatus : 'enroute';
+        currentDispatch.status = isAcceptedDispatchStatus(resolvedAssignmentStatus) ? resolvedAssignmentStatus : 'enroute';
       }
       isAvailable = !missionAccepted;
       document.getElementById('statusPill').className = 'status-pill ' + (missionAccepted ? 'busy' : 'available');
@@ -1162,19 +1179,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         renderGoogleRoute(routeOrigin, patientLocation || fallbackDestination, hospitalLocation);
       }
 
-      if (markerMatches && String(liveAssignment.status || '').toLowerCase() !== 'enroute' && dispatchSocket && dispatchSocket.connected) {
-        dispatchSocket.emit('driver-accept-dispatch', {
-          sosId: currentDispatch.sosId,
-          driverId: currentDriverProfile?.id || currentDriverProfile?.driverId || null,
-          driverName: currentDriverProfile?.name || 'Ambulance Driver',
-          vehicle: currentDriverProfile?.ambulanceId || 'A-UNIT'
-        });
-      }
-
       return currentDispatch;
     } catch (error) {
       console.warn('Could not restore live dispatch from backend:', error);
       return null;
+    } finally {
+      dispatchRestoreInProgress = false;
     }
   }
 
