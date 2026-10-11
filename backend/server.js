@@ -2000,6 +2000,61 @@ app.get('/api/drivers', async (req, res) => {
   }
 });
 
+app.post('/api/admin/migrations/fill-missing-driver-locations', async (req, res) => {
+  try {
+    if (!isValidAdminKey(req)) {
+      return res.status(403).json({ success: false, message: 'Invalid admin key' });
+    }
+
+    const drivers = await Driver.find({}).lean();
+    const seedByDriverId = new Map(MUMBAI_DRIVER_SEED.map((seed) => [seed.driverId, seed]));
+    const operations = [];
+
+    drivers.forEach((driver, index) => {
+      const location = driver.location || {};
+      const lat = Number(location.lat);
+      const lng = Number(location.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        return;
+      }
+
+      const seed = seedByDriverId.get(driver.driverId);
+      const locationKey = String(driver.driverId || driver.ambulanceId || driver._id || index);
+      const locationIndex = Array.from(locationKey).reduce((sum, char) => sum + char.charCodeAt(0), 0) % MUMBAI_LOCATION_REFERENCE.length;
+      const reference = MUMBAI_LOCATION_REFERENCE[locationIndex];
+      const coordinates = seed?.location || reference;
+      const simulatedLocation = buildDriverLocation(coordinates, {
+        address: `Demo location near ${seed?.locationTag || inferMumbaiLocality(coordinates.lat, coordinates.lng) || reference.name}, Mumbai, Maharashtra`,
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        simulated: true,
+        lastUpdated: new Date()
+      });
+
+      operations.push({
+        updateOne: {
+          filter: { _id: driver._id },
+          update: { $set: { location: { ...simulatedLocation, simulated: true } } }
+        }
+      });
+    });
+
+    if (operations.length) {
+      await Driver.bulkWrite(operations, { ordered: false });
+    }
+
+    return res.json({
+      success: true,
+      backfilledDrivers: operations.length,
+      totalDrivers: drivers.length,
+      message: 'Missing driver coordinates saved as simulated Mumbai demo locations'
+    });
+  } catch (error) {
+    console.error('Fill missing driver locations migration error:', error.message || error);
+    return res.status(500).json({ success: false, message: 'Failed to fill missing driver locations' });
+  }
+});
+
 app.get('/api/admin/ambulance-assignments', async (req, res) => {
   try {
     const requestedLimit = Number(req.query.limit || 20);

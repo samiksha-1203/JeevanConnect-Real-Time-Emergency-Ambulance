@@ -382,7 +382,7 @@ button{font-family:inherit}
                 <div class="legend-item"><div class="legend-dot idle"></div>Idle</div>
                 <div class="legend-item"><div class="legend-dot demo"></div>Demo location</div>
               </div>
-              <div class="analytics-caption">Drivers with saved coordinates are shown. Seeded/demo locations are marked and are not live GPS.</div>
+              <div class="analytics-caption">All drivers are shown. Missing coordinates are saved as simulated Mumbai demo locations and are not live GPS.</div>
             </div>
 
           </div>
@@ -1780,6 +1780,23 @@ async function loadTodayAnalytics() {
 
 async function loadFleetUnitsFromDb() {
   try {
+    try {
+      const repairResponse = await fetch(`${API_BASE_URL}/api/admin/migrations/fill-missing-driver-locations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const repairData = await repairResponse.json();
+      if (!repairResponse.ok || repairData?.success !== true) {
+        throw new Error(repairData?.message || `Driver location repair failed (${repairResponse.status})`);
+      }
+      if (repairData.backfilledDrivers > 0) {
+        console.info(`Saved simulated coordinates for ${repairData.backfilledDrivers} drivers without locations.`);
+      }
+    } catch (error) {
+      console.error('Failed to save missing demo driver locations:', error);
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/drivers`);
     const data = await response.json();
     if (!response.ok || data?.success !== true) {
